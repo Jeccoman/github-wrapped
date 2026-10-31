@@ -606,16 +606,17 @@ h1, h2, h3 { font-family: var(--display); font-weight: 300; letter-spacing: -0.0
 .slide.active .card-drop { animation: card-drop 1s var(--ease-spring) both; animation-delay: 250ms; }
 @keyframes card-drop { from { opacity: 0; transform: translateY(-30cqh) rotate(-14deg); } }
 
-.share-card { padding: 2.6cqh 5cqw; color: var(--paper); background: var(--ink); border-radius: 14px; }
-.share-card header, .ig-card header { display: flex; align-items: center; gap: 12px; margin-bottom: 2cqh; }
+.share-card { padding: 20px 22px; color: var(--paper); background: var(--ink); border-radius: 14px; }
+.share-card header, .ig-card header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
 .card-avatar { width: 44px; height: 44px; border-radius: var(--cell-radius); object-fit: cover; flex: none; }
-.card-avatar.initial { font-size: 22px; }
-.share-card header b, .ig-card header b { display: block; font-size: 17px; }
+.card-avatar.initial { font-size: 22px; color: var(--ink); background: var(--l2); }
+.share-card header b, .ig-card header b { display: block; font-size: 17px; line-height: 1.2; }
+.share-card dt, .ig-card dt, .share-card header span, .ig-card header span { line-height: 1.3; }
 .share-card header span, .ig-card header span { font-size: 13px; color: var(--l1); }
-.share-card dl { display: grid; grid-template-columns: 1fr 1fr; gap: 1.6cqh 12px; margin: 0 0 2cqh; }
+.share-card dl { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0 0 16px; }
 .share-card dl > div { min-width: 0; }
 .share-card dt, .ig-card dt { font-size: 13px; color: var(--l1); }
-.share-card dd { margin: 2px 0 0; font-size: min(2.3cqh, 4.4cqw); font-weight: 700; line-height: 1.15; overflow-wrap: break-word; }
+.share-card dd { margin: 2px 0 0; font-size: 18px; font-weight: 700; line-height: 1.15; overflow-wrap: break-word; }
 .card-grid { gap: 2px; }
 .card-grid i { background: #174227; animation: none !important; }
 .card-grid .v1 { background: #2f7a45; }
@@ -641,6 +642,7 @@ h1, h2, h3 { font-family: var(--display); font-weight: 300; letter-spacing: -0.0
 
 /* ---------- 9:16 export ---------- */
 .offscreen { position: fixed; left: -10000px; top: 0; }
+.offscreen .share-card { width: 400px; }
 .ig-card {
   width: 360px; height: 640px;
   display: flex; flex-direction: column;
@@ -649,6 +651,7 @@ h1, h2, h3 { font-family: var(--display); font-weight: 300; letter-spacing: -0.0
   font-family: var(--text);
 }
 .ig-card header span, .ig-card dt { color: #0d4122; }
+.ig-card .card-avatar.initial { color: var(--l2); background: var(--ink); }
 .ig-label { margin: auto 0 0; font-size: 15px; font-weight: 700; }
 .ig-huge { margin: 0 0 24px; font-family: var(--display); font-weight: 300; font-size: 92px; line-height: 0.9; letter-spacing: -0.05em; }
 .ig-card dl { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 12px; margin: 0 0 24px; }

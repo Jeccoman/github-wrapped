@@ -135,8 +135,8 @@ function playStory(stats, slides) {
     } else if (action === 'close') stopStory();
     else if (action === 'replay') show(0);
     else if (action === 'copy-link') await copyLink(button);
-    else if (action === 'save-card') await saveImage(button, () => $('#share-card', frame), `${stats.login}-${stats.year}`);
-    else if (action === 'save-story') await saveStoryImage(button, stats);
+    else if (action === 'save-card') await saveOffscreen(button, shareCardHtml(stats), `github-wrapped-${stats.login}-${stats.year}.png`, 'Saved.');
+    else if (action === 'save-story') await saveOffscreen(button, storyCardHtml(stats), `github-wrapped-${stats.login}-${stats.year}-story.png`, 'Saved. Ready for your Stories.');
   }
 
   const onDown = (e) => {
@@ -210,7 +210,17 @@ async function withBusy(button, busyLabel, work) {
 }
 
 async function renderPng(el, scale) {
-  const canvas = await window.html2canvas(el, { backgroundColor: null, scale, useCORS: true, logging: false });
+  const canvas = await window.html2canvas(el, {
+    backgroundColor: null,
+    scale,
+    useCORS: true,
+    logging: false,
+    onclone: (doc) => {
+      const still = doc.createElement('style');
+      still.textContent = '*, *::before, *::after { animation: none !important; transition: none !important; }';
+      doc.head.append(still);
+    },
+  });
   return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
 }
 
@@ -231,25 +241,18 @@ async function deliver(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function saveImage(button, getEl, slug) {
-  return withBusy(button, 'Saving…', async () => {
-    const blob = await renderPng(getEl(), 3);
-    await deliver(blob, `github-wrapped-${slug}.png`);
-    setStatus('Saved.');
-  });
-}
-
-function saveStoryImage(button, stats) {
+function saveOffscreen(button, html, filename, done) {
   return withBusy(button, 'Saving…', async () => {
     const host = document.createElement('div');
     host.className = 'offscreen';
-    host.innerHTML = storyCardHtml(stats);
+    host.innerHTML = html;
+    host.firstElementChild.removeAttribute('id');
     document.body.append(host);
     try {
       await Promise.all($$('img', host).map((img) => img.decode().catch(() => {})));
       const blob = await renderPng(host.firstElementChild, 3);
-      await deliver(blob, `github-wrapped-${stats.login}-${stats.year}-story.png`);
-      setStatus('Saved. Ready for your Stories.');
+      await deliver(blob, filename);
+      setStatus(done);
     } finally {
       host.remove();
     }
