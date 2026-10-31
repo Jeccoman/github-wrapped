@@ -1,9 +1,15 @@
 import { createClient, fetchUserData, fetchOrgData, FIRST_YEAR, NAME_RE } from './github.js';
 import { computeUserStats, computeOrgStats } from './stats.js';
-import { buildUserSlides, buildOrgSlides, storyCardHtml, fmt } from './slides.js';
+import { buildUserSlides, buildOrgSlides, storyCardHtml, shareCardHtml, fmt } from './slides.js';
+import { heroGraph, blockMark, observeReveals } from './landing.js';
+import { demoRaw } from './demo.js';
 
-const SLIDE_MS = 7000;
 const $ = (sel, el = document) => el.querySelector(sel);
+const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
+const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+const THIS_YEAR = new Date().getFullYear();
+
+const settings = { org: false, private: false, lastYear: false, slow: false };
 
 async function loadRaw({ kind, name, year, token }, onProgress) {
   if (token) {
@@ -24,14 +30,14 @@ async function loadRaw({ kind, name, year, token }, onProgress) {
 }
 
 function animateCounters(slide) {
-  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   slide.querySelectorAll('[data-count]').forEach((el) => {
     const target = Number(el.dataset.count);
-    if (reduce || target === 0) { el.textContent = fmt(target); return; }
-    const start = performance.now();
+    if (reducedMotion() || target === 0) { el.textContent = fmt(target); return; }
+    const start = performance.now() + 380;
+    el.textContent = '0';
     const step = (t) => {
-      const k = Math.min(1, (t - start) / 1200);
-      el.textContent = fmt(target * (1 - Math.pow(1 - k, 3)));
+      const k = Math.max(0, Math.min(1, (t - start) / 1300));
+      el.textContent = fmt(target * (1 - Math.pow(1 - k, 4)));
       if (k < 1 && slide.classList.contains('active')) requestAnimationFrame(step);
       else el.textContent = fmt(target);
     };
@@ -39,37 +45,63 @@ function animateCounters(slide) {
   });
 }
 
+function slideMarkup(slide) {
+  return `<section class="slide theme-${slide.theme}"><div class="giant" aria-hidden="true"></div>${slide.html}</section>`;
+}
+
 let stopStory = () => {};
 
 function playStory(stats, slides) {
+  const slideMs = settings.slow ? 14000 : 7000;
   const story = $('#story');
+  const wipeCells = Array.from({ length: 66 }, (_, n) => `<i style="--x:${n % 6};--y:${Math.floor(n / 6)}"></i>`).join('');
   story.innerHTML = `
-    <div class="frame">
+    <div class="frame" data-ui>
       <div class="progress">${slides.map(() => '<span><i></i></span>').join('')}</div>
       <button class="story-close" data-action="close" aria-label="Close">×</button>
-      ${slides.map((s) => `<section class="slide theme-${s.theme}">${s.html}</section>`).join('')}
+      <div class="wipe" aria-hidden="true">${wipeCells}</div>
+      ${slides.map(slideMarkup).join('')}
     </div>`;
   story.hidden = false;
+  document.body.style.overflow = 'hidden';
 
   const frame = $('.frame', story);
-  const sections = [...frame.querySelectorAll('.slide')];
-  const bars = [...frame.querySelectorAll('.progress i')];
-  let idx = 0, elapsed = 0, paused = false, last = performance.now(), raf = 0, pressAt = 0;
+  const wipe = $('.wipe', frame);
+  const sections = $$('.slide', frame);
+  const bars = $$('.progress i', frame);
+  let idx = -1, elapsed = 0, paused = false, last = performance.now(), raf = 0, pressAt = 0, busy = false;
+  const timers = [];
 
-  function show(i) {
-    idx = Math.max(0, Math.min(sections.length - 1, i));
+  function activate(i) {
+    idx = i;
     elapsed = 0;
     sections.forEach((el, j) => el.classList.toggle('active', j === idx));
     bars.forEach((b, j) => { b.style.width = j < idx ? '100%' : '0%'; });
+    frame.style.setProperty('--pfg', getComputedStyle(sections[idx]).getPropertyValue('--fg'));
     animateCounters(sections[idx]);
+  }
+
+  function show(i) {
+    const next = Math.max(0, Math.min(sections.length - 1, i));
+    if (next === idx || busy) return;
+    if (idx === -1 || reducedMotion()) { activate(next); return; }
+    busy = true;
+    frame.style.setProperty('--wipe', getComputedStyle(sections[next]).getPropertyValue('--bg'));
+    wipe.className = 'wipe cover';
+    timers.push(setTimeout(() => {
+      activate(next);
+      wipe.className = 'wipe uncover';
+      busy = false;
+    }, 560));
+    timers.push(setTimeout(() => { if (!busy) wipe.className = 'wipe'; }, 1200));
   }
 
   function tick(t) {
     const dt = t - last;
     last = t;
-    if (!paused) elapsed += dt;
-    bars[idx].style.width = `${Math.min(100, (elapsed / SLIDE_MS) * 100)}%`;
-    if (idx < sections.length - 1 && elapsed >= SLIDE_MS) show(idx + 1);
+    if (!paused && !busy) elapsed += dt;
+    if (idx >= 0) bars[idx].style.width = `${Math.min(100, (elapsed / slideMs) * 100)}%`;
+    if (idx < sections.length - 1 && elapsed >= slideMs) show(idx + 1);
     raf = requestAnimationFrame(tick);
   }
 
@@ -77,7 +109,7 @@ function playStory(stats, slides) {
     if (action === 'close') stopStory();
     else if (action === 'replay') show(0);
     else if (action === 'copy-link') await copyLink(button);
-    else if (action === 'save-card') await saveImage(button, () => $('#share-card'), `${stats.login}-${stats.year}`);
+    else if (action === 'save-card') await saveImage(button, () => $('#share-card', frame), `${stats.login}-${stats.year}`);
     else if (action === 'save-story') await saveStoryImage(button, stats);
   }
 
@@ -110,10 +142,12 @@ function playStory(stats, slides) {
 
   stopStory = () => {
     cancelAnimationFrame(raf);
+    timers.forEach(clearTimeout);
     document.removeEventListener('keydown', onKey);
     document.removeEventListener('visibilitychange', onVisibility);
     story.hidden = true;
     story.innerHTML = '';
+    document.body.style.overflow = '';
     $('#setup').hidden = false;
   };
 
@@ -122,7 +156,7 @@ function playStory(stats, slides) {
 }
 
 function setStatus(message) {
-  const el = $('.share-status');
+  const el = $('.slide.active .share-status');
   if (el) el.textContent = message;
 }
 
@@ -178,7 +212,7 @@ function saveStoryImage(button, stats) {
     host.innerHTML = storyCardHtml(stats);
     document.body.append(host);
     try {
-      await Promise.all([...host.querySelectorAll('img')].map((img) => img.decode().catch(() => {})));
+      await Promise.all($$('img', host).map((img) => img.decode().catch(() => {})));
       const blob = await renderPng(host.firstElementChild, 3);
       await deliver(blob, `github-wrapped-${stats.login}-${stats.year}-story.png`);
       setStatus('Saved. Ready for your Stories.');
@@ -198,48 +232,141 @@ async function copyLink(button) {
   }
 }
 
+function showLoading(on) {
+  const loader = $('.loader');
+  if (!loader.childElementCount) {
+    loader.innerHTML = Array.from({ length: 21 }, (_, n) => `<i style="--d:${(n % 7) + Math.floor(n / 7)}"></i>`).join('');
+  }
+  $('#loading').hidden = !on;
+}
+
+const PLATES = [
+  {
+    title: 'One big number',
+    text: 'Every contribution you made this year, counted up in front of you, with how many days you showed up and how it compares to last year.',
+    pick: (slides) => slides[1],
+  },
+  {
+    title: 'What you spoke',
+    text: 'Your languages, weighted by where your commits actually went, not by what happens to sit in your repos.',
+    pick: (slides) => slides.find((s) => s.html.includes('lang-rows')),
+  },
+  {
+    title: 'A card to share',
+    text: 'The whole year on one card, with your real contribution graph, plus a 1080×1920 version made for Instagram and WhatsApp Stories.',
+    pick: (_, stats) => ({ theme: 'l2', html: `<div class="card-drop">${shareCardHtml(stats)}</div>` }),
+  },
+];
+
+function initShowcase(demoStats, demoSlides) {
+  const plate = $('#plate');
+  const tabs = $$('[data-plate]');
+  function select(n, animate) {
+    const p = PLATES[n];
+    plate.innerHTML = `<div class="mini-frame" inert>${slideMarkup(p.pick(demoSlides, demoStats)).replace('class="slide ', 'class="slide active ')}</div>`;
+    plate.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'));
+    tabs.forEach((t, i) => t.setAttribute('aria-selected', String(i === n)));
+    $('#plate-title').textContent = p.title;
+    $('#plate-text').textContent = p.text;
+    if (animate) {
+      plate.classList.remove('swap');
+      void plate.offsetWidth;
+      plate.classList.add('swap');
+    }
+  }
+  tabs.forEach((t, i) => t.addEventListener('click', () => select(i, true)));
+  $('.text-tabs').addEventListener('keydown', (e) => {
+    const current = tabs.findIndex((t) => t.getAttribute('aria-selected') === 'true');
+    const delta = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+    if (!delta) return;
+    const n = (current + delta + tabs.length) % tabs.length;
+    select(n, true);
+    tabs[n].focus();
+  });
+  select(0, false);
+}
+
 function initSetup() {
   const form = $('#setup-form');
+  const nameInput = $('#name');
   const yearSelect = $('#year');
-  const thisYear = new Date().getFullYear();
-  for (let y = thisYear; y >= FIRST_YEAR; y--) yearSelect.add(new Option(y, y));
+  for (let y = THIS_YEAR; y >= FIRST_YEAR; y--) yearSelect.add(new Option(y, y));
+  $('#footer-year').textContent = THIS_YEAR;
+  $('#last-year-more').textContent = `Your ${THIS_YEAR - 1}, complete: every day from 1 January to 31 December.`;
 
-  const tokenToggle = $('#use-token');
-  const syncMode = () => {
-    const kind = form.elements.kind.value;
-    const withToken = tokenToggle.checked;
-    $('#token-field').hidden = !withToken;
-    $('#token').required = withToken;
-    $('#name').required = !withToken;
-    $('#name-label').textContent = kind === 'org' ? 'Organization' : 'Username';
-    $('#name').placeholder = kind === 'org' ? 'skyconnect' : 'octocat';
-    $('#name-hint').textContent = withToken && kind === 'user' ? '(blank = token owner)' : '';
-  };
-  form.addEventListener('change', syncMode);
+  const graph = heroGraph($('#hero-graph'));
+  graph.write(String(THIS_YEAR));
+  nameInput.addEventListener('input', () => graph.write(nameInput.value || String(THIS_YEAR)));
+
+  blockMark($('.block-mark'));
+  observeReveals();
+
+  const demoStats = computeUserStats(demoRaw(THIS_YEAR));
+  const demoSlides = buildUserSlides(demoStats, { canCopyLink: false });
+  initShowcase(demoStats, demoSlides);
+  $('[data-demo]').addEventListener('click', () => {
+    $('#setup').hidden = true;
+    playStory(demoStats, buildUserSlides(demoStats, { canCopyLink: false }));
+  });
+
+  const bands = $$('.band');
+  function setSetting(key, on, fromForm = false) {
+    settings[key] = on;
+    const band = bands.find((b) => b.dataset.setting === key);
+    band.classList.toggle('on', on);
+    $('.switch', band).setAttribute('aria-checked', String(on));
+    if (key === 'org') {
+      if (!fromForm) form.elements.kind.value = on ? 'org' : 'user';
+      nameInput.placeholder = on ? 'GitHub organization' : 'GitHub username';
+    }
+    if (key === 'lastYear' && !fromForm) yearSelect.value = String(on ? THIS_YEAR - 1 : THIS_YEAR);
+    if (key === 'private' && on) setTimeout(() => $('#token').focus({ preventScroll: true }), 60);
+  }
+  bands.forEach((band) => {
+    band.addEventListener('click', (e) => {
+      if (e.target.closest('input, label, p.band-more, #token-help')) return;
+      setSetting(band.dataset.setting, !settings[band.dataset.setting]);
+    });
+  });
+  form.addEventListener('change', (e) => {
+    if (e.target.name === 'kind') setSetting('org', e.target.value === 'org', true);
+    if (e.target === yearSelect) setSetting('lastYear', Number(yearSelect.value) === THIS_YEAR - 1, true);
+  });
+
+  $$('[data-focus-name]').forEach((a) => a.addEventListener('click', () => {
+    setTimeout(() => nameInput.focus({ preventScroll: true }), reducedMotion() ? 0 : 500);
+  }));
 
   async function run() {
     const kind = form.elements.kind.value;
-    const token = tokenToggle.checked ? $('#token').value.trim() : '';
-    const name = $('#name').value.trim().replace(/^@/, '');
+    const token = settings.private ? $('#token').value.trim() : '';
+    const name = nameInput.value.trim().replace(/^@/, '');
     const year = Number(yearSelect.value);
-    $('#error').textContent = '';
-    if (name && !NAME_RE.test(name)) { $('#error').textContent = "That doesn't look like a GitHub name."; return; }
-    if (kind === 'org' && !name) { $('#error').textContent = 'Enter an organization name.'; return; }
+    const error = $('#error');
+    error.textContent = '';
+    if (settings.private && !token) {
+      error.textContent = 'Paste your token under “Count my private work too”, or switch it off.';
+      $('#token').scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'center' });
+      return;
+    }
+    if (!name && !(token && kind === 'user')) { error.textContent = `Type a GitHub ${kind === 'org' ? 'organization' : 'username'} first.`; nameInput.focus(); return; }
+    if (name && !NAME_RE.test(name)) { error.textContent = "That doesn't look like a GitHub name."; return; }
 
     $('#setup').hidden = true;
-    $('#loading').hidden = false;
+    showLoading(true);
     try {
       const raw = await loadRaw({ kind, name, year, token }, (msg) => { $('#loading-text').textContent = msg; });
       const stats = kind === 'org' ? computeOrgStats(raw) : computeUserStats(raw);
       const canCopyLink = !token;
       if (canCopyLink) history.replaceState(null, '', `?${new URLSearchParams({ [kind]: stats.login, year })}`);
       const slides = kind === 'org' ? buildOrgSlides(stats, { canCopyLink }) : buildUserSlides(stats, { canCopyLink });
-      $('#loading').hidden = true;
+      showLoading(false);
       playStory(stats, slides);
     } catch (err) {
-      $('#loading').hidden = true;
+      showLoading(false);
       $('#setup').hidden = false;
-      $('#error').textContent = err.message;
+      error.textContent = err.message;
+      scrollTo({ top: 0 });
     }
   }
 
@@ -248,12 +375,16 @@ function initSetup() {
   const params = new URLSearchParams(location.search);
   const shared = params.get('org') ? 'org' : params.get('user') ? 'user' : null;
   if (shared) {
-    form.elements.kind.value = shared;
-    $('#name').value = params.get(shared);
-    if (Number(params.get('year')) >= FIRST_YEAR && Number(params.get('year')) <= thisYear) yearSelect.value = params.get('year');
+    setSetting('org', shared === 'org');
+    nameInput.value = params.get(shared);
+    graph.write(nameInput.value);
+    const y = Number(params.get('year'));
+    if (y >= FIRST_YEAR && y <= THIS_YEAR) {
+      yearSelect.value = String(y);
+      setSetting('lastYear', y === THIS_YEAR - 1, true);
+    }
+    run();
   }
-  syncMode();
-  if (shared) run();
 }
 
 initSetup();

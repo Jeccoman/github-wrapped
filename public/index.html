@@ -4,50 +4,209 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>GitHub Wrapped</title>
+  <meta name="description" content="A tap-through story of your GitHub year: contributions, streaks, languages and the hour you code best.">
+  <meta name="theme-color" content="#f6f8fa">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700;12..96,800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Stack+Sans+Headline:wght@300;500&family=Stack+Sans+Text:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <script>document.documentElement.classList.add('js');</script>
 </head>
 <body>
-  <main id="setup" class="setup">
-    <div class="setup-card">
-      <h1>GitHub<br>Wrapped</h1>
-      <p class="tagline">Your year in code, unwrapped.</p>
-      <form id="setup-form" autocomplete="off">
-        <fieldset class="segmented">
-          <legend class="sr-only">Wrap a</legend>
-          <label><input type="radio" name="kind" value="user" checked><span>Person</span></label>
-          <label><input type="radio" name="kind" value="org"><span>Organization</span></label>
-        </fieldset>
-        <label>
-          <span><span id="name-label">Username</span> <em id="name-hint"></em></span>
-          <input id="name" type="text" placeholder="octocat" spellcheck="false" autocapitalize="off">
-        </label>
-        <label>
-          <span>Year</span>
-          <select id="year"></select>
-        </label>
-        <label class="check">
-          <input id="use-token" type="checkbox">
-          <span>Include private work <em>(needs a token)</em></span>
-        </label>
-        <label id="token-field" hidden>
-          <span>GitHub token</span>
-          <input id="token" type="password" placeholder="ghp_… or github_pat_…">
-          <small class="fine">
-            Stays in this tab and goes only to <code>api.github.com</code>, never to our server.
-            Use a classic token with <code>read:user</code>, <code>read:org</code> and <code>repo</code> scopes.
-          </small>
-        </label>
-        <button type="submit" class="primary">Unwrap the year</button>
-        <p id="error" class="error" role="alert"></p>
-      </form>
-    </div>
-  </main>
+  <div id="setup">
+    <header class="nav">
+      <a class="wordmark" href="#top"><span class="cell-glyph" aria-hidden="true"></span>Wrapped</a>
+      <nav aria-label="Sections">
+        <a href="#example">Example</a>
+        <a href="#how">How it works</a>
+        <a href="#faq">Questions</a>
+      </nav>
+      <a class="nav-action" href="#top" data-focus-name>Unwrap</a>
+    </header>
+
+    <main>
+      <section class="hero" id="top">
+        <div class="hero-copy">
+          <h1 class="reveal">Your year in code, wrapped.</h1>
+          <div class="hero-side">
+          <p class="lead reveal" style="--i:1">A tap-through story of your GitHub year: contributions, streaks, languages and the hour you code best. Free, with no sign-in.</p>
+          <form id="setup-form" class="unwrap reveal" style="--i:2" autocomplete="off" novalidate>
+            <div class="unwrap-row">
+              <input id="name" type="text" placeholder="GitHub username" aria-label="GitHub username or organization" spellcheck="false" autocapitalize="off" maxlength="39">
+              <select id="year" aria-label="Year"></select>
+              <button type="submit" class="button">Unwrap</button>
+            </div>
+            <div class="kind-tabs" role="radiogroup" aria-label="Wrap a">
+              <label><input type="radio" name="kind" value="user" checked><span>Person</span></label>
+              <label><input type="radio" name="kind" value="org"><span>Organization</span></label>
+            </div>
+            <p id="error" class="error" role="alert"></p>
+          </form>
+          </div>
+        </div>
+        <div class="graph-stage" aria-hidden="true" data-ui>
+          <div class="graph" id="hero-graph"></div>
+        </div>
+      </section>
+
+      <section class="showcase" id="example">
+        <div class="plate-wrap">
+          <div class="plate shutter" id="plate" data-ui></div>
+          <p class="caption">Example data. Yours will be real.</p>
+        </div>
+        <div class="showcase-side">
+          <div class="text-tabs" role="tablist" aria-label="Example slides">
+            <button role="tab" aria-selected="true" data-plate="0">The number</button>
+            <button role="tab" aria-selected="false" data-plate="1">The languages</button>
+            <button role="tab" aria-selected="false" data-plate="2">The card</button>
+          </div>
+          <div class="showcase-text">
+            <h2 id="plate-title" class="reveal">One big number</h2>
+            <p id="plate-text" class="reveal" style="--i:1">Every contribution you made this year, counted up in front of you, with how many days you showed up and how it compares to last year.</p>
+          </div>
+          <div class="action-cells reveal" style="--i:2">
+            <a class="action-cell ink" href="#top" data-focus-name>Unwrap yours</a>
+            <button class="action-cell tone" type="button" data-demo>Play the example</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="how" id="how" aria-labelledby="how-title">
+        <div class="field l1">
+          <h2 id="how-title">How it works</h2>
+          <div class="mini-card" data-ui>
+            <span class="mini-input">octocat<i class="caret"></i></span>
+            <span class="mini-row"><span class="mini-tab on">Person</span><span class="mini-tab">Organization</span></span>
+            <span class="mini-row"><span class="mini-select">2026</span><span class="mini-button">Unwrap</span></span>
+          </div>
+          <p class="clause">First you type a name.</p>
+        </div>
+        <div class="field l2">
+          <div class="mini-card" data-ui>
+            <span class="mini-label">Reading 2026</span>
+            <span class="mini-cells"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="off"></i><i class="off"></i><i class="off"></i></span>
+            <span class="mini-meta">1,204 contributions found</span>
+            <span class="mini-meta">Timing 600 commits…</span>
+            <span class="mini-meta">Counting the words you used most…</span>
+          </div>
+          <p class="clause">Then we read the year.</p>
+        </div>
+        <div class="field l3">
+          <div class="mini-card dark" data-ui>
+            <span class="mini-meta">This year you made</span>
+            <span class="mini-big">1,204</span>
+            <span class="mini-meta">contributions, about 4 a day</span>
+            <span class="mini-rain"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+          </div>
+          <p class="clause">Then it plays as a story.</p>
+        </div>
+        <div class="field l4">
+          <div class="mini-card" data-ui>
+            <span class="mini-meta">@octocat · 2026</span>
+            <span class="mini-big">31 days</span>
+            <span class="mini-meta">longest streak</span>
+            <span class="mini-strip"><i class="a"></i><i></i><i class="b"></i><i class="c"></i><i></i><i class="a"></i><i class="c"></i><i class="b"></i><i></i><i class="c"></i><i class="a"></i><i class="b"></i><i class="c"></i><i class="c"></i></span>
+            <span class="mini-saved">Saved for Stories</span>
+          </div>
+          <p class="clause">Then you share it.</p>
+        </div>
+      </section>
+
+      <section class="settings" id="settings" aria-labelledby="settings-title">
+        <h2 id="settings-title" class="band-title">Make it yours.</h2>
+        <div class="band" data-setting="org">
+          <div class="band-text">
+            <p class="band-sentence">Wrap a whole organization.</p>
+            <p class="band-more">Commits from up to 100 repos, merged PRs, top contributors and the team's peak hour.</p>
+          </div>
+          <button class="switch" role="switch" aria-checked="false" aria-label="Wrap a whole organization" data-ui><i></i></button>
+        </div>
+        <div class="band" data-setting="private">
+          <div class="band-text">
+            <p class="band-sentence">Count my private work too.</p>
+            <div class="band-more">
+              <label class="token-label" for="token">GitHub token</label>
+              <input id="token" type="password" placeholder="ghp_…" aria-describedby="token-help">
+              <p id="token-help">It goes from this tab straight to GitHub; our server never sees it. Use a classic token with read:user, read:org and repo.</p>
+            </div>
+          </div>
+          <button class="switch" role="switch" aria-checked="false" aria-label="Count my private work too" data-ui><i></i></button>
+        </div>
+        <div class="band" data-setting="lastYear">
+          <div class="band-text">
+            <p class="band-sentence">Show me last year instead.</p>
+            <p class="band-more" id="last-year-more">The whole of last year, every day of it.</p>
+          </div>
+          <button class="switch" role="switch" aria-checked="false" aria-label="Show me last year instead" data-ui><i></i></button>
+        </div>
+        <div class="band" data-setting="slow">
+          <div class="band-text">
+            <p class="band-sentence">Play it at half speed.</p>
+            <p class="band-more">14 seconds a slide instead of 7. Hold anywhere to pause.</p>
+          </div>
+          <button class="switch" role="switch" aria-checked="false" aria-label="Play it at half speed" data-ui><i></i></button>
+        </div>
+      </section>
+
+      <section class="faq" id="faq" aria-labelledby="faq-title">
+        <h2 id="faq-title" class="reveal">Questions, answered</h2>
+        <div class="tiles">
+          <details name="faq" class="reveal">
+            <summary>Is it free?</summary>
+            <p>Yes. No account, no sign-in, no ads. Type a name and it plays.</p>
+          </details>
+          <details name="faq" class="reveal">
+            <summary>Where do the numbers come from?</summary>
+            <p>GitHub's own API: the same contribution graph you see on a profile, plus the commits on each repository's default branch.</p>
+          </details>
+          <details name="faq" class="reveal">
+            <summary>Why doesn't it match my profile exactly?</summary>
+            <p>The story counts from 1 January to today. Profiles can also show private contributions you've chosen to share, which public mode only sees as a total. The coding clock and commit words use your latest 100 commits in each of your top six repositories.</p>
+          </details>
+          <details name="faq" class="reveal">
+            <summary>Do you keep my data?</summary>
+            <p>Public results are cached for six hours so a shared link opens fast, then they expire. Results made with your own token never touch our server.</p>
+          </details>
+          <details name="faq" class="reveal">
+            <summary>What can my token see?</summary>
+            <p>Only what you allow when you create it. It goes from your browser directly to api.github.com and lives in this tab until you close it.</p>
+          </details>
+          <details name="faq" class="reveal">
+            <summary>Can I wrap my company?</summary>
+            <p>Yes. Switch to Organization. Private repositories need a token from a member of that organization.</p>
+          </details>
+          <details name="faq" class="reveal">
+            <summary>Which time zone is the coding clock in?</summary>
+            <p>Yours. Commit times are shown in the time zone of the device you're watching on.</p>
+          </details>
+          <details name="faq" class="reveal">
+            <summary>Is this made by GitHub?</summary>
+            <p>No. It's an independent project built on GitHub's public API, not affiliated with GitHub or Spotify.</p>
+          </details>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="block-mark" aria-label="Wrapped" role="img"></div>
+      <div class="footer-cols">
+        <nav aria-label="Footer">
+          <a href="#top" data-focus-name>Unwrap</a>
+          <a href="#example">Example</a>
+          <a href="#how">How it works</a>
+          <a href="#faq">Questions</a>
+        </nav>
+        <p>Built on the GitHub GraphQL API.<br>Not affiliated with GitHub or Spotify.</p>
+      </div>
+      <div class="footer-last">
+        <span>© <span id="footer-year">2026</span> GitHub Wrapped</span>
+        <a class="button small" href="#top">Back to top</a>
+      </div>
+    </footer>
+  </div>
 
   <div id="loading" class="loading" hidden>
-    <div class="spinner"></div>
+    <div class="loader" aria-hidden="true"></div>
     <p id="loading-text">Reading your commits…</p>
   </div>
 
