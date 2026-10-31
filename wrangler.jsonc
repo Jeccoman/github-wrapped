@@ -3,6 +3,8 @@
   "name": "github-wrapped",
   "account_id": "52149a64c8a2dba44cd8a64f81e8ee6a",
   "main": "worker/index.js",
+  "workers_dev": true,
+  "preview_urls": false,
   "compatibility_date": "2026-10-01",
   "assets": {
     "directory": "./public",
