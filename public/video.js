@@ -27,7 +27,9 @@ const display = (size, weight = 300) => `${weight} ${size}px "Stack Sans Headlin
 const body = (size, weight = 500) => `${weight} ${size}px "Stack Sans Text", system-ui, sans-serif`;
 
 export function videoSupported() {
-  return typeof MediaRecorder !== 'undefined' && !!HTMLCanvasElement.prototype.captureStream && MIME_TYPES.some((t) => MediaRecorder.isTypeSupported(t));
+  const encoders = 'VideoEncoder' in window && 'AudioEncoder' in window;
+  const recorder = typeof MediaRecorder !== 'undefined' && !!HTMLCanvasElement.prototype.captureStream && MIME_TYPES.some((t) => MediaRecorder.isTypeSupported(t));
+  return encoders || recorder;
 }
 
 function loadImage(url) {
@@ -356,23 +358,37 @@ function leaderboard(ctx, members, t) {
   });
 }
 
-async function loadOutro(ctx) {
+const MUXER_URL = 'https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.1/build/mp4-muxer.mjs';
+const SAMPLE_RATE = 44100;
+const AUDIO_CONFIG = { codec: 'mp4a.40.2', sampleRate: SAMPLE_RATE, numberOfChannels: 2, bitrate: 128000 };
+const VIDEO_CODECS = ['avc1.42E01F', 'avc1.4D401F', 'avc1.640028'];
+
+async function decodeOutro() {
   try {
     const res = await fetch(OUTRO_URL);
+    const ctx = new OfflineAudioContext(2, SAMPLE_RATE, SAMPLE_RATE);
     return await ctx.decodeAudioData(await res.arrayBuffer());
   } catch {
     return null;
   }
 }
 
-export async function recordVideo(stats, { onProgress = () => {} } = {}) {
-  const mimeType = MIME_TYPES.find((t) => MediaRecorder.isTypeSupported(t));
+async function pickVideoConfig() {
+  if (!('VideoEncoder' in window) || !('AudioEncoder' in window) || !('VideoFrame' in window)) return null;
+  for (const codec of VIDEO_CODECS) {
+    const config = { codec, width: W, height: H, bitrate: 4_000_000, framerate: FPS };
+    const { supported } = await VideoEncoder.isConfigSupported(config).catch(() => ({ supported: false }));
+    if (supported) return config;
+  }
+  return null;
+}
+
+async function prepare(stats) {
   await Promise.all([
     document.fonts.load(display(100)), document.fonts.load(display(100, 500)), document.fonts.load(body(30)), document.fonts.load(body(30, 700)),
   ]).catch(() => {});
   const avatarUrls = stats.kind === 'party' ? stats.members.slice(0, 6).map((m) => m.avatarUrl) : [stats.avatarUrl];
   const images = await Promise.all(avatarUrls.map(loadImage));
-
   const canvas = document.createElement('canvas');
   canvas.width = W;
   canvas.height = H;
@@ -380,17 +396,7 @@ export async function recordVideo(stats, { onProgress = () => {} } = {}) {
   const scenes = scenesFor(stats, images);
   const total = scenes.reduce((n, s) => n + s.dur, 0);
 
-  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  await audioCtx.resume().catch(() => {});
-  const dest = audioCtx.createMediaStreamDestination();
-  const outro = await loadOutro(audioCtx);
-  const stream = new MediaStream([...canvas.captureStream(FPS).getVideoTracks(), ...dest.stream.getAudioTracks()]);
-  const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 4_000_000 });
-  const chunks = [];
-  recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
-  const stopped = new Promise((resolve) => { recorder.onstop = resolve; });
-
-  function frame(time) {
+  function draw(time) {
     let start = 0;
     let index = scenes.findIndex((s) => { const end = start + s.dur; if (time < end) return true; start = end; return false; });
     if (index === -1) { index = scenes.length - 1; start = total - scenes[index].dur; }
@@ -414,8 +420,83 @@ export async function recordVideo(stats, { onProgress = () => {} } = {}) {
     if (index > 0 && t < 0.3) wipe(ctx, scene.bg, 1 - t / 0.3);
   }
 
-  frame(0);
-  recorder.start(250);
+  return { canvas, draw, total };
+}
+
+const nextTick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+async function encodeMp4(stats, videoConfig, onProgress) {
+  const [{ Muxer, ArrayBufferTarget }, outro, { canvas, draw, total }] = await Promise.all([import(MUXER_URL), decodeOutro(), prepare(stats)]);
+  const audioOk = outro && (await AudioEncoder.isConfigSupported(AUDIO_CONFIG).catch(() => ({ supported: false }))).supported;
+  const muxer = new Muxer({
+    target: new ArrayBufferTarget(),
+    video: { codec: 'avc', width: W, height: H, frameRate: FPS },
+    audio: audioOk ? { codec: 'aac', numberOfChannels: 2, sampleRate: SAMPLE_RATE } : undefined,
+    fastStart: 'in-memory',
+  });
+  let failure = null;
+  const videoEncoder = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: (e) => { failure = e; } });
+  videoEncoder.configure(videoConfig);
+
+  const frames = Math.round(total * FPS);
+  for (let i = 0; i < frames; i++) {
+    if (failure) throw failure;
+    draw(i / FPS);
+    const frame = new VideoFrame(canvas, { timestamp: Math.round((i * 1e6) / FPS), duration: Math.round(1e6 / FPS) });
+    videoEncoder.encode(frame, { keyFrame: i % (FPS * 2) === 0 });
+    frame.close();
+    while (videoEncoder.encodeQueueSize > 6) await nextTick();
+    if (i % 5 === 0) {
+      onProgress((i / frames) * 0.9);
+      await nextTick();
+    }
+  }
+  await videoEncoder.flush();
+
+  if (audioOk) {
+    const audioEncoder = new AudioEncoder({ output: (chunk, meta) => muxer.addAudioChunk(chunk, meta), error: (e) => { failure = e; } });
+    audioEncoder.configure(AUDIO_CONFIG);
+    const length = Math.min(outro.length, Math.round(total * SAMPLE_RATE));
+    const fadeFrom = length - Math.round(0.8 * SAMPLE_RATE);
+    const channels = [outro.getChannelData(0), outro.getChannelData(outro.numberOfChannels > 1 ? 1 : 0)];
+    const block = 4096;
+    for (let offset = 0; offset < length; offset += block) {
+      const n = Math.min(block, length - offset);
+      const data = new Float32Array(n * 2);
+      channels.forEach((channel, c) => {
+        for (let k = 0; k < n; k++) {
+          const at = offset + k;
+          const gain = at > fadeFrom ? Math.max(0, (length - at) / (length - fadeFrom)) : 1;
+          data[c * n + k] = channel[at] * gain;
+        }
+      });
+      const audioData = new AudioData({ format: 'f32-planar', sampleRate: SAMPLE_RATE, numberOfFrames: n, numberOfChannels: 2, timestamp: Math.round((offset / SAMPLE_RATE) * 1e6), data });
+      audioEncoder.encode(audioData);
+      audioData.close();
+    }
+    await audioEncoder.flush();
+  }
+  if (failure) throw failure;
+  muxer.finalize();
+  onProgress(1);
+  return { blob: new Blob([muxer.target.buffer], { type: 'video/mp4' }), extension: 'mp4' };
+}
+
+async function recordRealtime(stats, onProgress) {
+  const mimeType = MIME_TYPES.find((t) => MediaRecorder.isTypeSupported(t));
+  const { canvas, draw, total } = await prepare(stats);
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  await audioCtx.resume().catch(() => {});
+  const dest = audioCtx.createMediaStreamDestination();
+  const outro = await decodeOutro();
+  const stream = new MediaStream([...canvas.captureStream(FPS).getVideoTracks(), ...dest.stream.getAudioTracks()]);
+  const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 4_000_000 });
+  const chunks = [];
+  recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+  const stopped = new Promise((resolve) => { recorder.onstop = resolve; });
+
+  draw(0);
+  recorder.start();
   if (outro) {
     const src = audioCtx.createBufferSource();
     src.buffer = outro;
@@ -429,7 +510,7 @@ export async function recordVideo(stats, { onProgress = () => {} } = {}) {
   await new Promise((resolve) => {
     const tick = () => {
       const time = (performance.now() - began) / 1000;
-      frame(Math.min(time, total));
+      draw(Math.min(time, total));
       onProgress(Math.min(1, time / total));
       if (time >= total) resolve();
       else requestAnimationFrame(tick);
@@ -442,4 +523,16 @@ export async function recordVideo(stats, { onProgress = () => {} } = {}) {
   audioCtx.close();
   const type = mimeType.split(';')[0];
   return { blob: new Blob(chunks, { type }), extension: type === 'video/mp4' ? 'mp4' : 'webm' };
+}
+
+export async function recordVideo(stats, { onProgress = () => {} } = {}) {
+  const videoConfig = await pickVideoConfig();
+  if (videoConfig) {
+    try {
+      return await encodeMp4(stats, videoConfig, onProgress);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+  return recordRealtime(stats, onProgress);
 }

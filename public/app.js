@@ -325,7 +325,7 @@ async function saveVideo(button, stats) {
   audio.suspend();
   try {
     const { blob, extension } = await recordVideo(stats, {
-      onProgress: (k) => { button.textContent = `Recording… ${Math.round(k * 100)}%`; },
+      onProgress: (k) => { button.textContent = `Making video… ${Math.round(k * 100)}%`; },
     });
     button.textContent = 'Saving…';
     await deliver(blob, `github-wrapped-${stats.login}-${stats.year}.${extension}`);
