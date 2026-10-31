@@ -3,6 +3,7 @@ const CHORDS = [[0, 4, 7], [9, 12, 16], [5, 9, 12], [7, 11, 14]];
 const BPM = 112;
 const STEP = 60 / BPM / 4;
 const STORE_KEY = 'wrapped-sound';
+const OUTRO_URL = 'audio/outro.mp3';
 const CUTOFF = { night: 900, deep: 1100, paper: 2200, sun: 3200, pumpkin: 2600, l1: 2400, l2: 2000, l3: 1600, l4: 1300 };
 
 const mtof = (m) => 440 * 2 ** ((m - 69) / 12);
@@ -26,6 +27,7 @@ export function melodyFrom(values) {
 export function createAudio() {
   let ctx = null;
   let master, music, sfx, padFilter, noise;
+  let outro = null;
   let timer = null;
   let step = 0;
   let nextTime = 0;
@@ -181,6 +183,7 @@ export function createAudio() {
     stop() {
       clearInterval(timer);
       timer = null;
+      this.outro(false);
       if (!ctx) return;
       master.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.15);
       notify();
@@ -202,6 +205,23 @@ export function createAudio() {
       layers = index === 0 ? 0 : index === 1 ? 1 : index < 4 ? 2 : 3;
       if (index === count - 1) layers = 3;
       padFilter.frequency.setTargetAtTime(CUTOFF[theme] ?? 1800, ctx.currentTime, 0.4);
+    },
+
+    outro(on) {
+      if (!ctx) return;
+      if (on && !outro) {
+        outro = new Audio(OUTRO_URL);
+        outro.preload = 'auto';
+        ctx.createMediaElementSource(outro).connect(master);
+      }
+      if (on) {
+        music.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.25);
+        outro.currentTime = 0;
+        outro.play().catch(() => {});
+      } else {
+        music.gain.setTargetAtTime(0.55, ctx.currentTime, 0.25);
+        if (outro) outro.pause();
+      }
     },
 
     whoosh() {

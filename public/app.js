@@ -98,6 +98,7 @@ function playStory(stats, slides) {
     bars.forEach((b, j) => { b.style.width = j < idx ? '100%' : '0%'; });
     frame.style.setProperty('--pfg', getComputedStyle(sections[idx]).getPropertyValue('--fg'));
     audio.slide(idx, sections.length, slides[idx].theme);
+    audio.outro(idx === sections.length - 1);
     audio.effects(sections[idx]);
     animateCounters(sections[idx]);
   }
