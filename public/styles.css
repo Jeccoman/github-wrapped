@@ -585,6 +585,8 @@ h1, h2, h3 { font-family: var(--display); font-weight: 300; letter-spacing: -0.0
 .stacks.duo .stack span b { display: block; font-family: var(--display); font-weight: 300; font-size: min(3.6cqh, 6.4cqw); color: var(--fg); }
 .stacks.clock { gap: 0.6cqw; }
 .stacks.clock .stack { gap: 0.4cqh; }
+.stacks.week { gap: 2.4cqw; }
+.stacks.week .stack span { font-size: min(1.7cqh, 3.2cqw); }
 .axis { display: flex; justify-content: space-between; margin-top: -1cqh; font-size: min(1.7cqh, 3.2cqw); color: var(--soft); }
 
 .stickers { display: flex; flex-wrap: wrap; gap: 1.4cqh 2cqw; }

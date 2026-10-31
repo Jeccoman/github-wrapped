@@ -140,14 +140,54 @@ function figuresSlide(heading, figures) {
   };
 }
 
-function seasonSlide(byMonth, byWeekday) {
+function seasonSlide(byMonth) {
   const topMonth = argmax(byMonth);
+  const share = Math.round((byMonth[topMonth] / Math.max(1, byMonth.reduce((a, b) => a + b, 0))) * 100);
   return {
     theme: 'l4',
     html: `
       <h2 class="say"><span class="soft">${words('The busiest month was')}</span><br>${words(MONTH_NAMES[topMonth], 4)}</h2>
-      <p class="lead rise" style="--i:6">and ${WEEKDAYS[argmax(byWeekday)]}s were the power day.</p>
+      <p class="lead rise" style="--i:6">${share}% of the whole year happened in that one month.</p>
       ${stacks(byMonth, { max: 12, highlight: topMonth, labels: [...MONTH_INITIALS] })}`,
+  };
+}
+
+const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
+const DAY_LINES = {
+  0: 'Sunday panic is real.',
+  1: 'Fresh week, fresh commits.',
+  2: 'Tuesday is for shipping.',
+  3: 'The midweek machine.',
+  4: 'Thursday is the new Friday.',
+  5: 'Friday deploys? Brave.',
+  6: 'Saturday side quests.',
+};
+
+function weekdaySlide(byWeekday, who) {
+  const top = argmax(byWeekday);
+  const total = byWeekday.reduce((a, b) => a + b, 0);
+  const share = Math.round((byWeekday[top] / Math.max(1, total)) * 100);
+  return {
+    theme: 'sun',
+    html: `
+      <h2 class="say"><span class="soft">${words(`${who} power day was`)}</span><br>${words(WEEKDAYS[top], 4)}</h2>
+      <p class="lead rise" style="--i:6">${share}% of everything landed on ${WEEKDAYS[top]}s. ${DAY_LINES[top]}</p>
+      ${stacks(WEEK_ORDER.map((d) => byWeekday[d]), { max: 10, highlight: WEEK_ORDER.indexOf(top), labels: WEEK_ORDER.map((d) => WEEKDAYS[d].slice(0, 3)), cls: 'week' })}`,
+  };
+}
+
+function reviewSlide(opened, reviewed) {
+  const verdict = reviewed >= opened * 1.5
+    ? ['The Reviewer', 'You read more code than you shipped. Your team owes you one.']
+    : opened >= reviewed * 1.5
+      ? ['The Shipper', 'You open pull requests faster than anyone can review them.']
+      : ['The Collaborator', 'Opened and reviewed in almost equal measure.'];
+  return {
+    theme: 'deep',
+    html: `
+      <h2 class="say"><span class="soft">${words('With pull requests, you were')}</span><br>${words(verdict[0], 5)}</h2>
+      <p class="lead rise" style="--i:7">${esc(verdict[1])}</p>
+      ${stacks([opened, reviewed], { max: 9, highlight: reviewed >= opened ? 1 : 0, cls: 'duo', labels: [`Opened<b>${fmt(opened)}</b>`, `Reviewed<b>${fmt(reviewed)}</b>`] })}`,
   };
 }
 
@@ -319,7 +359,9 @@ export function buildUserSlides(s, opts) {
     [s.issues, 'issues'],
     [s.newRepos, 'new repos'],
   ]));
-  slides.push(seasonSlide(s.byMonth, s.byWeekday));
+  if (s.prs + s.reviews > 0) slides.push(reviewSlide(s.prs, s.reviews));
+  slides.push(seasonSlide(s.byMonth));
+  if (s.byWeekday.some(Boolean)) slides.push(weekdaySlide(s.byWeekday, 'Your'));
   if (s.info.topWords.length) slides.push(vocabularySlide(s.info, 'You'));
   slides.push(personaSlide(s));
   slides.push(finalSlide(s, opts));
@@ -365,7 +407,8 @@ export function buildOrgSlides(s, opts) {
 
   if (s.languages.length) slides.push(languageSlide(s.languages, 'Your team'));
   if (s.topStarred?.stars > 0) slides.push(starredSlide(s.topStarred, 'Your'));
-  if (s.byMonth.some(Boolean)) slides.push(seasonSlide(s.byMonth, s.info.byWeekday));
+  if (s.byMonth.some(Boolean)) slides.push(seasonSlide(s.byMonth));
+  if (s.info.byWeekday.some(Boolean)) slides.push(weekdaySlide(s.info.byWeekday, "The team's"));
   if (s.info.topWords.length) slides.push(vocabularySlide(s.info, 'Your team'));
   slides.push(personaSlide(s));
   slides.push(finalSlide(s, opts));
@@ -438,6 +481,8 @@ export function buildPartySlides(p, opts) {
     p.fixer?.value > 0 && ['Fix-it person', at(p.fixer.member), plural(p.fixer.value, 'fix', 'fixes')],
     p.weekend?.value > 0 && ['Weekend warrior', at(p.weekend.member), `${Math.round(p.weekend.value * 100)}% on weekends`],
     p.starred && ['Most stars', `${at(p.starred)}/${p.starred.topStarred.name}`, plural(p.starred.topStarred.stargazerCount, 'star')],
+    p.reviewer?.value > 0 && ['Top reviewer', at(p.reviewer.member), plural(p.reviewer.value, 'review')],
+    p.sunday?.value >= 0.2 && ['Sunday panic', at(p.sunday.member), `${Math.round(p.sunday.value * 100)}% on Sundays`],
     p.topWord && ['Party word', `“${p.topWord[0]}”`, plural(p.topWord[1], 'time')],
   ].filter(Boolean);
   slides.push({

@@ -259,6 +259,8 @@ export function computePartyStats(members, year) {
     prs: champion(members, (m) => m.prs, { min: 0 }),
     fixer: champion(members, (m) => m.info.fixes, { min: 0 }),
     weekend: champion(members, (m) => m.weekendShare, { min: 0 }),
+    reviewer: champion(members, (m) => m.reviews, { min: 0 }),
+    sunday: champion(members, (m) => (m.total ? m.byWeekday[0] / m.total : 0), { min: 0 }),
     starred,
   };
 }
