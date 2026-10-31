@@ -619,6 +619,8 @@ h1, h2, h3 { font-family: var(--display); font-weight: 300; letter-spacing: -0.0
 .share-card dl > div { min-width: 0; }
 .share-card dt, .ig-card dt { font-size: 13px; color: var(--l1); }
 .share-card dd { margin: 2px 0 0; font-size: 18px; font-weight: 700; line-height: 1.15; overflow-wrap: break-word; }
+.card-credit { margin: 12px 0 0; font-size: 12px; color: var(--l1); }
+.ig-card .card-credit { margin-top: 16px; color: #0d4122; }
 .card-grid { gap: 2px; }
 .card-grid i { background: #174227; animation: none !important; }
 .card-grid .v1 { background: #2f7a45; }

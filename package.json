@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "stats": "sh scripts/stats.sh"
   },
   "devDependencies": {
     "wrangler": "^4.156.0"

@@ -197,6 +197,8 @@ function shareFacts(s) {
   ];
 }
 
+const CREDIT = () => `${typeof location === 'object' ? location.host : 'github-wrapped'} · made by @Jeccoman`;
+
 function cardHeader(s) {
   return `<header>${avatar(s, 'card-avatar')}<div><b>${esc(s.name)}</b><span>GitHub Wrapped ${s.year}</span></div></header>`;
 }
@@ -211,6 +213,7 @@ export function shareCardHtml(s) {
     ${cardHeader(s)}
     <dl>${shareFacts(s).map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
     ${cardStrip(s)}
+    <p class="card-credit">${esc(CREDIT())}</p>
   </div>`;
 }
 
@@ -240,6 +243,7 @@ export function storyCardHtml(s) {
     <p class="ig-huge">${esc(headline[1])}</p>
     <dl>${rest.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
     ${cardStrip(s)}
+    <p class="card-credit">${esc(CREDIT())}</p>
   </div>`;
 }
 

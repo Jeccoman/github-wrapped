@@ -16,9 +16,11 @@ export function createClient(token, { userAgent } = {}) {
     const res = await fetch(GRAPHQL_URL, { method: 'POST', headers, body: JSON.stringify({ query, variables }) });
     const json = await res.json().catch(() => ({}));
     if (res.status === 401) throw new GitHubError('GitHub rejected that token. Check it is valid and not expired.', 401);
+    if (res.status === 403 || res.status === 429) throw new GitHubError('GitHub is rate limiting us right now. Try again in a few minutes.', 429);
     if (!res.ok) throw new GitHubError(json.message || `GitHub API error (${res.status})`, res.status);
     if (json.errors && !(partial && json.data)) {
       const err = json.errors[0];
+      if (err.type === 'RATE_LIMITED') throw new GitHubError('GitHub is rate limiting us right now. Try again in a few minutes.', 429);
       throw new GitHubError(err.message, err.type === 'NOT_FOUND' ? 404 : 502);
     }
     return json.data;

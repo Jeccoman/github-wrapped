@@ -9,8 +9,10 @@
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*"]
+    "run_worker_first": ["/", "/index.html", "/api/*", "/og/*", "/og.png"]
   },
   "kv_namespaces": [{ "binding": "CACHE", "id": "71539940ed6f4c51a925ef76099095d4" }],
+  "ratelimits": [{ "name": "LIMITER", "namespace_id": "4401", "simple": { "limit": 12, "period": 60 } }],
+  "analytics_engine_datasets": [{ "binding": "WRAPS", "dataset": "github_wrapped" }],
   "observability": { "enabled": true }
 }
