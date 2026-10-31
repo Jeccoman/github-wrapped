@@ -1,6 +1,6 @@
 import { createClient, fetchUserData, fetchOrgData, FIRST_YEAR, NAME_RE } from './github.js';
-import { computeUserStats, computeOrgStats } from './stats.js';
-import { buildUserSlides, buildOrgSlides, storyCardHtml, shareCardHtml, fmt } from './slides.js';
+import { computeUserStats, computeOrgStats, computePartyStats } from './stats.js';
+import { buildUserSlides, buildOrgSlides, buildPartySlides, storyCardHtml, shareCardHtml, fmt } from './slides.js';
 import { heroGraph, blockMark, observeReveals } from './landing.js';
 import { demoRaw } from './demo.js';
 import { createAudio } from './audio.js';
@@ -15,10 +15,38 @@ const settings = { org: false, private: false, lastYear: false, slow: false, hap
 const audio = createAudio();
 
 function melodyValues(stats) {
+  if (stats.kind === 'party') return stats.weeks;
   if (stats.kind === 'org') return [...stats.byMonth, ...stats.info.hours];
   const weeks = [];
   stats.days.forEach((d, i) => { weeks[Math.floor(i / 7)] = (weeks[Math.floor(i / 7)] ?? 0) + d.contributionCount; });
   return weeks;
+}
+
+const PARTY_MAX = 8;
+
+function partyNames(value) {
+  return [...new Set(value.split(/[\s,]+/).map((n) => n.trim().replace(/^@/, '')).filter(Boolean).map((n) => n.toLowerCase()))];
+}
+
+async function loadParty(names, year, token, onProgress) {
+  const members = [];
+  const failed = [];
+  let next = 0;
+  let done = 0;
+  async function worker() {
+    while (next < names.length) {
+      const name = names[next++];
+      try {
+        members.push(computeUserStats(await loadRaw({ kind: 'user', name, year, token }, () => {})));
+      } catch {
+        failed.push(name);
+      }
+      onProgress(`Read ${++done} of ${names.length} friends…`);
+    }
+  }
+  await Promise.all([worker(), worker(), worker()]);
+  if (members.length < 2) throw new Error(`A party needs at least two people we can read.${failed.length ? ` Couldn't find: ${failed.map((n) => `@${n}`).join(', ')}.` : ''}`);
+  return { stats: computePartyStats(members, year), failed };
 }
 
 async function loadRaw({ kind, name, year, token }, onProgress) {
@@ -359,7 +387,7 @@ function initSetup() {
 
   const graph = heroGraph($('#hero-graph'));
   graph.write(String(THIS_YEAR));
-  nameInput.addEventListener('input', () => graph.write(nameInput.value || String(THIS_YEAR)));
+  nameInput.addEventListener('input', () => graph.write(nameInput.value.replace(/[\s,]+/g, '-') || String(THIS_YEAR)));
 
   blockMark($('.block-mark'));
   observeReveals();
@@ -374,6 +402,12 @@ function initSetup() {
   });
 
   const bands = $$('.band');
+  function syncKind() {
+    const kind = form.elements.kind.value;
+    nameInput.placeholder = { user: 'GitHub username', org: 'GitHub organization', party: 'friend1, friend2, friend3' }[kind];
+    nameInput.maxLength = kind === 'party' ? 320 : 39;
+    nameInput.setAttribute('aria-label', kind === 'party' ? `Up to ${PARTY_MAX} GitHub usernames, separated by commas` : 'GitHub username or organization');
+  }
   function setSetting(key, on, fromForm = false) {
     if (key === 'sound' && on !== audio.enabled) audio.setEnabled(on);
     if (key === 'haptics') {
@@ -384,10 +418,8 @@ function initSetup() {
     const band = bands.find((b) => b.dataset.setting === key);
     band.classList.toggle('on', on);
     $('.switch', band).setAttribute('aria-checked', String(on));
-    if (key === 'org') {
-      if (!fromForm) form.elements.kind.value = on ? 'org' : 'user';
-      nameInput.placeholder = on ? 'GitHub organization' : 'GitHub username';
-    }
+    if (key === 'org' && !fromForm) form.elements.kind.value = on ? 'org' : 'user';
+    if (key === 'org') syncKind();
     if (key === 'lastYear' && !fromForm) yearSelect.value = String(on ? THIS_YEAR - 1 : THIS_YEAR);
     if (key === 'private' && on) setTimeout(() => $('#token').focus({ preventScroll: true }), 60);
   }
@@ -402,7 +434,10 @@ function initSetup() {
   setSetting('haptics', haptics.enabled);
   audio.onChange(({ enabled }) => { if (settings.sound !== enabled) setSetting('sound', enabled); });
   form.addEventListener('change', (e) => {
-    if (e.target.name === 'kind') setSetting('org', e.target.value === 'org', true);
+    if (e.target.name === 'kind') {
+      setSetting('org', e.target.value === 'org', true);
+      syncKind();
+    }
     if (e.target === yearSelect) setSetting('lastYear', Number(yearSelect.value) === THIS_YEAR - 1, true);
   });
 
@@ -420,6 +455,28 @@ function initSetup() {
     if (settings.private && !token) {
       error.textContent = 'Paste your token under “Count my private work too”, or switch it off.';
       $('#token').scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'center' });
+      return;
+    }
+    if (kind === 'party') {
+      const names = partyNames(name);
+      const bad = names.find((n) => !NAME_RE.test(n));
+      if (names.length < 2) { error.textContent = 'Add at least two usernames, separated by commas.'; nameInput.focus(); return; }
+      if (names.length > PARTY_MAX) { error.textContent = `A party fits up to ${PARTY_MAX} people.`; return; }
+      if (bad) { error.textContent = `“${bad}” doesn't look like a GitHub username.`; return; }
+      $('#setup').hidden = true;
+      showLoading(true);
+      try {
+        const { stats } = await loadParty(names, year, token, (msg) => { $('#loading-text').textContent = msg; });
+        const canCopyLink = !token;
+        if (canCopyLink) history.replaceState(null, '', `?${new URLSearchParams({ party: stats.members.map((m) => m.login).join(','), year })}`);
+        showLoading(false);
+        playStory(stats, buildPartySlides(stats, { canCopyLink }));
+      } catch (err) {
+        showLoading(false);
+        $('#setup').hidden = false;
+        error.textContent = err.message;
+        scrollTo({ top: 0 });
+      }
       return;
     }
     if (!name && !(token && kind === 'user')) { error.textContent = `Type a GitHub ${kind === 'org' ? 'organization' : 'username'} first.`; nameInput.focus(); return; }
@@ -450,11 +507,13 @@ function initSetup() {
   });
 
   const params = new URLSearchParams(location.search);
-  const shared = params.get('org') ? 'org' : params.get('user') ? 'user' : null;
+  const shared = params.get('party') ? 'party' : params.get('org') ? 'org' : params.get('user') ? 'user' : null;
   if (shared) {
-    setSetting('org', shared === 'org');
-    nameInput.value = params.get(shared);
-    graph.write(nameInput.value);
+    form.elements.kind.value = shared;
+    setSetting('org', shared === 'org', true);
+    syncKind();
+    nameInput.value = shared === 'party' ? partyNames(params.get('party')).join(', ') : params.get(shared);
+    graph.write(nameInput.value.replace(/[\s,]+/g, '-'));
     const y = Number(params.get('year'));
     if (y >= FIRST_YEAR && y <= THIS_YEAR) {
       yearSelect.value = String(y);

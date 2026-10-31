@@ -201,3 +201,64 @@ export function computeOrgStats(raw) {
     persona: persona(info, { team: true }),
   };
 }
+
+const shareBetween = (hours, from, to) => {
+  const total = sum(hours);
+  if (!total) return 0;
+  let n = 0;
+  for (let h = from; h !== to; h = (h + 1) % 24) n += hours[h];
+  return n / total;
+};
+
+function champion(members, score, { min = -Infinity } = {}) {
+  let best = null;
+  for (const m of members) {
+    const v = score(m);
+    if (v > min && (!best || v > best.value)) best = { member: m, value: v };
+  }
+  return best;
+}
+
+export function computePartyStats(members, year) {
+  const ranked = [...members].sort((a, b) => b.total - a.total);
+  const weeks = [];
+  for (const m of members) m.days.forEach((d, i) => { weeks[Math.floor(i / 7)] = (weeks[Math.floor(i / 7)] ?? 0) + d.contributionCount; });
+
+  const langs = new Map();
+  for (const m of members) {
+    for (const l of m.languages) {
+      const entry = langs.get(l.name) ?? { name: l.name, color: l.color, weight: 0 };
+      entry.weight += l.pct * m.total;
+      langs.set(l.name, entry);
+    }
+  }
+  const langList = [...langs.values()].sort((a, b) => b.weight - a.weight).slice(0, 5);
+  const langTotal = sum(langList.map((l) => l.weight));
+
+  const words = new Map();
+  for (const m of members) for (const w of m.info.topWords) words.set(w.name, (words.get(w.name) ?? 0) + w.count);
+
+  const timed = members.filter((m) => m.info.sample >= 15);
+  const starred = members.filter((m) => m.topStarred).sort((a, b) => b.topStarred.stargazerCount - a.topStarred.stargazerCount)[0];
+
+  return {
+    kind: 'party',
+    year,
+    name: 'Wrap Party',
+    login: ranked.map((m) => m.login).join('-'),
+    avatarUrl: null,
+    members: ranked,
+    total: sum(members.map((m) => m.total)),
+    weeks,
+    languages: langList.map((l) => ({ ...l, pct: langTotal ? (l.weight / langTotal) * 100 : 0 })),
+    topWord: [...words].sort((a, b) => b[1] - a[1])[0] ?? null,
+    streak: champion(members, (m) => m.longest, { min: 0 }),
+    biggestDay: champion(members, (m) => m.busiest.contributionCount, { min: 0 }),
+    nightOwl: champion(timed, (m) => shareBetween(m.info.hours, 22, 5), { min: 0 }),
+    earlyBird: champion(timed, (m) => shareBetween(m.info.hours, 5, 11), { min: 0 }),
+    prs: champion(members, (m) => m.prs, { min: 0 }),
+    fixer: champion(members, (m) => m.info.fixes, { min: 0 }),
+    weekend: champion(members, (m) => m.weekendShare, { min: 0 }),
+    starred,
+  };
+}

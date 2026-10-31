@@ -195,6 +195,13 @@ async function handlePage(request, env) {
   let description = 'A tap-through story of your GitHub year: contributions, streaks, languages and the hour you code best. Free, with no sign-in.';
   let image = `${url.origin}/og.png`;
 
+  const party = (url.searchParams.get('party') ?? '').split(',').map((n) => n.trim()).filter((n) => NAME_RE.test(n)).slice(0, 8);
+  if (party.length >= 2) {
+    const names = party.map((n) => `@${n}`);
+    title = `Wrap Party: ${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+    description = 'Who had the longest streak, who codes at 2am, and who tops the leaderboard. Open the party.';
+  }
+
   if (target) {
     const who = target.kind === 'org' ? target.name : `@${target.name}`;
     title = `${who}'s ${target.year} on GitHub, wrapped`;

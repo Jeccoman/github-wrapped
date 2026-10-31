@@ -494,7 +494,7 @@ h1, h2, h3 { font-family: var(--display); font-weight: 300; letter-spacing: -0.0
 .say-sm { font-family: var(--display); font-weight: 300; font-size: min(3.4cqh, 6cqw); line-height: 1.15; letter-spacing: -0.015em; }
 .num {
   font-family: var(--display); font-weight: 300;
-  font-size: min(17cqh, 30cqw); line-height: 0.85; letter-spacing: -0.05em;
+  font-size: min(17cqh, calc(150cqw / var(--len, 4))); line-height: 0.85; letter-spacing: -0.05em;
   font-variant-numeric: tabular-nums;
   transform-origin: left bottom;
 }
@@ -604,6 +604,16 @@ h1, h2, h3 { font-family: var(--display); font-weight: 300; letter-spacing: -0.0
 .slide.active .sticker { animation: stick 700ms var(--ease-spring) both; animation-delay: calc(var(--i) * 120ms + 600ms); }
 @keyframes stick { from { opacity: 0; transform: scale(2.2) rotate(calc(var(--r) * -3)); } }
 
+.party-faces { display: flex; flex-wrap: wrap; gap: 1.2cqh; }
+.party-faces .face { width: min(8cqh, 15cqw); aspect-ratio: 1; border-radius: var(--cell-radius); object-fit: cover; display: block; }
+.party-faces .face.initial { font-size: min(4cqh, 7cqw); }
+.party-faces .pop { display: block; }
+.slide.active .party-faces .pop { animation: avatar-pop 700ms var(--ease-spring) both; animation-delay: calc(var(--i) * 90ms + 80ms); }
+.awards { list-style: none; padding: 0; display: grid; gap: 1.2cqh; }
+.awards .sticker { display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 0 3cqw; padding: 1.3cqh 4cqw; }
+.awards .sticker span { grid-column: 1 / -1; font-size: min(1.8cqh, 3.4cqw); font-weight: 500; opacity: 0.85; }
+.awards .sticker b { font-weight: 700; font-size: min(2.6cqh, 4.8cqw); overflow-wrap: anywhere; }
+.awards .sticker em { font-style: normal; font-size: min(1.9cqh, 3.6cqw); text-align: right; }
 .card-drop { transform-origin: 50% 0; }
 .slide.active .card-drop { animation: card-drop 1s var(--ease-spring) both; animation-delay: 250ms; }
 @keyframes card-drop { from { opacity: 0; transform: translateY(-30cqh) rotate(-14deg); } }
@@ -627,6 +637,8 @@ h1, h2, h3 { font-family: var(--display); font-weight: 300; letter-spacing: -0.0
 .card-grid .v2 { background: var(--l3); }
 .card-grid .v3 { background: var(--l2); }
 .card-grid .v4 { background: var(--l1); }
+.card-stacks { grid-template-columns: repeat(var(--n), minmax(0, 22px)); justify-content: start; gap: 4px; }
+.card-stacks .stack { gap: 3px; }
 .card-stacks .stack i { background: #2f7a45; animation: none !important; }
 .card-stacks .stack.hot i { background: var(--l2); }
 

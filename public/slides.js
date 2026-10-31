@@ -7,6 +7,7 @@ export const fmt = (n) => Math.round(n).toLocaleString('en-US');
 const plural = (n, one, many = `${one}s`) => `${fmt(n)} ${n === 1 ? one : many}`;
 const shortName = (nameWithOwner) => nameWithOwner.split('/')[1];
 const count = (n) => `<span data-count="${Math.round(n)}">${fmt(n)}</span>`;
+const numLen = (text) => `style="--len:${Math.max(4, String(text).length)}"`;
 
 function words(text, start = 0) {
   return String(text).split(' ').map((w, i) => `<span class="w" style="--i:${start + i}"><span>${esc(w)}</span></span>`).join(' ');
@@ -69,7 +70,7 @@ function totalSlide({ total, noun, line }) {
     theme: 'l2',
     html: `
       <h2 class="say"><span class="soft">${words('This year you made')}</span></h2>
-      <p class="num bounce">${count(total)}</p>
+      <p class="num bounce" ${numLen(fmt(total))}>${count(total)}</p>
       <p class="say-sm rise" style="--i:4">${esc(noun)}. ${esc(line)}</p>
       ${html}
       <p class="note rise" style="--i:6">Each square is ${per === 1 ? 'one' : `about ${fmt(per)}`}.</p>`,
@@ -82,7 +83,7 @@ function changeSlide(s, { now, before, noun }) {
     theme: up ? 'sun' : 'pumpkin',
     html: `
       <h2 class="say"><span class="soft">${words(`Compared to ${s.year - 1}`)}</span></h2>
-      <p class="num bounce">${up ? '+' : '−'}${count(Math.abs(s.change))}%</p>
+      <p class="num bounce" ${numLen(`+${fmt(Math.abs(s.change))}%`)}>${up ? '+' : '−'}${count(Math.abs(s.change))}%</p>
       <p class="say-sm rise" style="--i:4">${up ? 'more' : 'fewer'} ${esc(noun)} than by this point last year.</p>
       ${stacks([before, now], { max: 9, highlight: 1, cls: 'duo', labels: [`${s.year - 1}<b>${fmt(before)}</b>`, `${s.year}<b>${fmt(now)}</b>`] })}`,
   };
@@ -123,7 +124,7 @@ function starredSlide(repo, who) {
     theme: 'sun',
     html: `
       <h2 class="say"><span class="soft">${words(`${who} most-starred repo`)}</span><br>${words(repo.name, 4)}</h2>
-      <p class="num bounce">${count(stars)}</p>
+      <p class="num bounce" ${numLen(fmt(stars))}>${count(stars)}</p>
       <p class="say-sm rise" style="--i:6">${stars === 1 ? 'star' : 'stars'}${repo.description ? `. ${esc(repo.description)}` : '.'}</p>`,
   };
 }
@@ -177,6 +178,16 @@ function personaSlide(s) {
 }
 
 function shareFacts(s) {
+  if (s.kind === 'party') {
+    return [
+      ['Together', fmt(s.total)],
+      ['Top of the party', `@${s.members[0].login}`],
+      ['Longest streak', s.streak ? `@${s.streak.member.login}, ${plural(s.streak.value, 'day')}` : '—'],
+      ['Night owl', s.nightOwl ? `@${s.nightOwl.member.login}` : '—'],
+      ['Party language', s.languages[0]?.name ?? '—'],
+      ['Party size', plural(s.members.length, 'person', 'people')],
+    ];
+  }
   if (s.kind === 'org') {
     return [
       ['Commits', fmt(s.totalCommits)],
@@ -205,6 +216,7 @@ function cardHeader(s) {
 
 function cardStrip(s) {
   if (s.kind === 'user') return yearGrid(s.days, 'year-grid card-grid');
+  if (s.kind === 'party') return stacks(s.members.map((m) => m.total), { max: 6, highlight: 0, cls: 'card-stacks' });
   return stacks(s.byMonth, { max: 6, highlight: argmax(s.byMonth), cls: 'card-stacks' });
 }
 
@@ -289,7 +301,7 @@ export function buildUserSlides(s, opts) {
     theme: 'pumpkin',
     html: `
       <h2 class="say"><span class="soft">${words('Your longest streak')}</span></h2>
-      <p class="num bounce">${count(s.longest)}</p>
+      <p class="num bounce" ${numLen(fmt(s.longest))}>${count(s.longest)}</p>
       <p class="say-sm rise" style="--i:4">${s.longest === 1 ? 'day' : 'days in a row'}${s.longest > 1 ? `, ending ${esc(formatDate(s.longestEnd))}` : ''}.</p>
       <div class="streak" aria-hidden="true">${streakCells}</div>
       <p class="note rise" style="--i:6">${s.longest >= 14 ? 'Discipline looks good on you.' : 'Rest days count too.'}</p>`,
@@ -355,5 +367,84 @@ export function buildOrgSlides(s, opts) {
   if (s.info.topWords.length) slides.push(vocabularySlide(s.info, 'Your team'));
   slides.push(personaSlide(s));
   slides.push(finalSlide(s, opts));
+  return slides;
+}
+
+export function buildPartySlides(p, opts) {
+  const at = (m) => `@${m.login}`;
+  const n = p.members.length;
+  const slides = [];
+
+  slides.push({
+    theme: 'deep',
+    html: `
+      <div class="party-faces">${p.members.map((m, i) => `<span class="pop" style="--i:${i}">${avatar(m, 'face')}</span>`).join('')}</div>
+      <h2 class="say xl">${words(`${n} of you.`)}</h2>
+      <p class="lead rise" style="--i:5">Your ${p.year} on GitHub, together. Tap to see who won what.</p>`,
+  });
+
+  slides.push(totalSlide({
+    total: p.total,
+    noun: 'contributions',
+    line: `Between ${plural(n, 'person', 'people')}, about ${fmt(p.total / p.members[0].elapsedDays)} a day.`,
+  }));
+
+  slides.push({
+    theme: 'l1',
+    html: `
+      <h2 class="say">${words('The leaderboard')}</h2>
+      <ol class="podium people">
+        ${p.members.map((m, i) => `<li class="${i === 0 ? 'first ' : ''}slide-in" style="--i:${i + 3}">${avatar(m, 'face')}<span class="repo">${esc(at(m))}</span><span class="meta">${plural(m.total, 'contribution')}</span></li>`).join('')}
+      </ol>`,
+  });
+
+  if (p.streak) {
+    const perCell = Math.max(1, Math.ceil(p.streak.value / 120));
+    const cells = Array.from({ length: Math.ceil(p.streak.value / perCell) }, (_, i) => `<i style="--i:${i}"></i>`).join('');
+    slides.push({
+      theme: 'pumpkin',
+      html: `
+        <h2 class="say"><span class="soft">${words('The longest streak goes to')}</span><br>${words(at(p.streak.member), 5)}</h2>
+        <p class="num bounce" ${numLen(fmt(p.streak.value))}>${count(p.streak.value)}</p>
+        <p class="say-sm rise" style="--i:7">days in a row.</p>
+        <div class="streak" aria-hidden="true">${cells}</div>`,
+    });
+  }
+
+  if (p.nightOwl) {
+    const bird = p.earlyBird && p.earlyBird.member !== p.nightOwl.member
+      ? `<p class="lead rise" style="--i:8">And the early bird is ${esc(at(p.earlyBird.member))}, with ${Math.round(p.earlyBird.value * 100)}% of commits before 11am.</p>`
+      : '';
+    slides.push({
+      theme: 'night',
+      html: `
+        <h2 class="say"><span class="soft">${words('The night owl is')}</span><br>${words(at(p.nightOwl.member), 4)}</h2>
+        <p class="lead rise" style="--i:6">${Math.round(p.nightOwl.value * 100)}% of their commits landed between 10pm and 5am.</p>
+        ${bird}`,
+    });
+  }
+
+  if (p.languages.length) {
+    const lang = languageSlide(p.languages, 'The party');
+    lang.html += `<div class="stickers">${p.members.filter((m) => m.languages[0]).map((m, i) => `<span class="sticker" style="--i:${i};--r:${[-4, 3, -2, 5, -3][i % 5]}deg">${esc(at(m))} <b>${esc(m.languages[0].name)}</b></span>`).join('')}</div>`;
+    slides.push(lang);
+  }
+
+  const awards = [
+    p.biggestDay && ['Biggest day', at(p.biggestDay.member), plural(p.biggestDay.value, 'contribution')],
+    p.prs?.value > 0 && ['Most pull requests', at(p.prs.member), fmt(p.prs.value)],
+    p.fixer?.value > 0 && ['Fix-it person', at(p.fixer.member), plural(p.fixer.value, 'fix', 'fixes')],
+    p.weekend?.value > 0 && ['Weekend warrior', at(p.weekend.member), `${Math.round(p.weekend.value * 100)}% on weekends`],
+    p.starred && ['Most stars', `${at(p.starred)}/${p.starred.topStarred.name}`, plural(p.starred.topStarred.stargazerCount, 'star')],
+    p.topWord && ['Party word', `“${p.topWord[0]}”`, plural(p.topWord[1], 'time')],
+  ].filter(Boolean);
+  slides.push({
+    theme: 'paper',
+    html: `
+      <h2 class="say">${words('The awards')}</h2>
+      <ul class="awards">${awards.map(([title, who, detail], i) => `<li class="sticker" style="--i:${i};--r:${[-3, 2, -2, 3, -1, 2][i % 6]}deg"><span>${esc(title)}</span><b>${esc(who)}</b><em>${esc(detail)}</em></li>`).join('')}</ul>`,
+  });
+
+  slides.push(finalSlide(p, opts));
   return slides;
 }
