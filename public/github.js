@@ -80,12 +80,15 @@ query($login: String!, $from: DateTime!, $to: DateTime!, $prevFrom: DateTime!, $
 }`;
 
 const ORG_QUERY = `
-query($org: String!, $since: GitTimestamp!, $until: GitTimestamp!, $prq: String!, $issueq: String!, $prevPrq: String!) {
-  organization(login: $org) {
-    login name avatarUrl
-    repositories(first: 100, orderBy: { field: PUSHED_AT, direction: DESC }) {
-      totalCount
-      nodes {
+query($org: String!, $repoq: String!, $since: GitTimestamp!, $until: GitTimestamp!, $prq: String!, $issueq: String!, $prevPrq: String!) {
+  owner: repositoryOwner(login: $org) {
+    __typename login avatarUrl
+    ... on Organization { name }
+  }
+  repos: search(query: $repoq, type: REPOSITORY, first: 100) {
+    repositoryCount
+    nodes {
+      ... on Repository {
         name nameWithOwner isPrivate isFork stargazerCount createdAt
         primaryLanguage { name color }
         ${LANGUAGES}
@@ -201,16 +204,18 @@ export async function fetchOrgData(gql, org, year, onProgress = () => {}) {
   onProgress(`Reading ${org}'s ${year}…`);
   const data = await gql(ORG_QUERY, {
     org,
+    repoq: `org:${org} sort:updated`,
     since: range.from,
     until: range.to,
     prq: `org:${org} is:pr is:merged merged:${day(range.from)}..${day(range.to)}`,
     issueq: `org:${org} is:issue created:${day(range.from)}..${day(range.to)}`,
     prevPrq: `org:${org} is:pr is:merged merged:${day(range.prevFrom)}..${day(range.prevTo)}`,
   });
-  const o = data.organization;
-  if (!o) throw new GitHubError(`No GitHub organization called "${org}".`, 404);
+  const o = data.owner;
+  if (o?.__typename !== 'Organization') throw new GitHubError(`No GitHub organization called "${org}".`, 404);
+  const nodes = data.repos.nodes.filter((r) => r.nameWithOwner);
 
-  const repos = o.repositories.nodes
+  const repos = nodes
     .map((r) => ({
       name: r.name,
       nameWithOwner: r.nameWithOwner,
@@ -222,7 +227,7 @@ export async function fetchOrgData(gql, org, year, onProgress = () => {}) {
     }))
     .filter((r) => r.commits > 0)
     .sort((a, b) => b.commits - a.commits);
-  const newRepos = o.repositories.nodes.filter((r) => r.createdAt >= range.from && r.createdAt <= range.to).length;
+  const newRepos = nodes.filter((r) => r.createdAt >= range.from && r.createdAt <= range.to).length;
 
   onProgress('Finding your top contributors…');
   const [monthly, commits] = await Promise.all([
@@ -235,7 +240,7 @@ export async function fetchOrgData(gql, org, year, onProgress = () => {}) {
     year,
     range,
     org: { login: o.login, name: o.name, avatarUrl: o.avatarUrl },
-    repoCount: o.repositories.totalCount,
+    repoCount: data.repos.repositoryCount,
     repos,
     newRepos,
     prs: data.prs.issueCount,
