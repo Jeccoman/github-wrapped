@@ -4,12 +4,15 @@ const HOUR = 3600;
 
 let tokenCheck = null;
 
-async function hasNoScopes(token) {
+const ALLOWED_SCOPES = new Set(['read:org']);
+
+async function hasOnlyPublicScopes(token) {
   const res = await fetch('https://api.github.com/rate_limit', {
     headers: { Authorization: `bearer ${token}`, 'User-Agent': 'github-wrapped' },
   });
-  const scopes = res.headers.get('x-oauth-scopes');
-  return res.ok && scopes !== null && scopes.trim() === '';
+  const header = res.headers.get('x-oauth-scopes');
+  if (!res.ok || header === null) return false;
+  return header.split(',').map((s) => s.trim()).filter(Boolean).every((s) => ALLOWED_SCOPES.has(s));
 }
 
 function publicOnly(data) {
@@ -54,7 +57,7 @@ async function handleApi(request, env, ctx, kind) {
   const cacheKey = `v2:${kind}:${name.toLowerCase()}:${year}`;
   const cacheHeaders = { 'Cache-Control': `public, max-age=${Math.min(ttl, HOUR)}` };
 
-  tokenCheck ??= hasNoScopes(env.GITHUB_TOKEN).catch(() => false);
+  tokenCheck ??= hasOnlyPublicScopes(env.GITHUB_TOKEN).catch(() => false);
   if (!(await tokenCheck)) {
     tokenCheck = null;
     return json({ error: 'Public mode is temporarily unavailable. Use a token instead.' }, 503);

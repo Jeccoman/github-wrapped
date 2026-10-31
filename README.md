@@ -13,7 +13,7 @@ Spotify Wrapped for GitHub: a tap-through story of a person's or an organization
 | Public (default) | Browser → Worker `/api/*` → GitHub, cached in KV | Public data only |
 | Token ("Include private work") | Browser → `api.github.com` directly | Whatever the visitor's token can see |
 
-The Worker's `GITHUB_TOKEN` **must have no scopes**. It only reads public data, and because it never carries `repo` access, public mode can't reveal private repos. Visitor tokens never reach the Worker.
+The Worker's `GITHUB_TOKEN` must be a classic token with **no scopes, or only `read:org`**; the Worker refuses to serve with anything else. Without `repo` access it only reads public data, and private repos are also stripped from every public response. Visitor tokens never reach the Worker.
 
 ```
 public/        static app (served by the Worker)
@@ -28,7 +28,7 @@ worker/        Cloudflare Worker: /api/user, /api/org + static assets
 
 ```sh
 npm install
-echo "GITHUB_TOKEN=<token with no scopes>" > .dev.vars
+echo "GITHUB_TOKEN=<token with no scopes or only read:org>" > .dev.vars
 npm run dev            # http://localhost:8787
 ```
 
@@ -36,7 +36,7 @@ npm run dev            # http://localhost:8787
 
 ```sh
 npx wrangler kv namespace create CACHE      # paste the binding into wrangler.jsonc as kv_namespaces
-npx wrangler secret put GITHUB_TOKEN        # a classic token with no scopes
+npx wrangler secret put GITHUB_TOKEN        # a classic token with no scopes (or only read:org)
 npm run deploy
 ```
 
