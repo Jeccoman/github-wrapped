@@ -390,6 +390,12 @@ h1, h2, h3 { font-family: var(--display); font-weight: 300; letter-spacing: -0.0
 .footer-cols { display: grid; grid-template-columns: repeat(12, 1fr); gap: var(--margin); margin-top: 56px; }
 .footer nav { grid-column: 1 / 9; display: flex; flex-wrap: wrap; gap: 12px 40px; }
 .footer-cols p { grid-column: 9 / 13; margin: 0; color: var(--l1); }
+.credit {
+  color: var(--paper); font-weight: 700;
+  text-decoration: underline; text-decoration-color: var(--l2); text-decoration-thickness: 2px; text-underline-offset: 4px;
+  transition: color 160ms ease, text-decoration-color 160ms ease;
+}
+.credit:hover { color: var(--l2); text-decoration-color: var(--paper); }
 .footer-last { display: flex; justify-content: space-between; align-items: center; margin-top: 48px; font-size: var(--step-small); color: var(--l1); }
 .footer .button { color: var(--ink); background: var(--l2); }
 .footer .button:hover { background: var(--l1); }
