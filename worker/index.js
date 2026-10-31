@@ -2,6 +2,36 @@ import { createClient, fetchUserData, fetchOrgData, GitHubError, NAME_RE, FIRST_
 
 const HOUR = 3600;
 
+let tokenCheck = null;
+
+async function hasNoScopes(token) {
+  const res = await fetch('https://api.github.com/rate_limit', {
+    headers: { Authorization: `bearer ${token}`, 'User-Agent': 'github-wrapped' },
+  });
+  const scopes = res.headers.get('x-oauth-scopes');
+  return res.ok && scopes !== null && scopes.trim() === '';
+}
+
+function publicOnly(data) {
+  if (data.kind === 'org') {
+    const hidden = new Set(data.repos.filter((r) => r.isPrivate).map((r) => r.nameWithOwner));
+    return { ...data, repos: data.repos.filter((r) => !r.isPrivate), commits: data.commits.filter((c) => !hidden.has(c.repo)) };
+  }
+  const cc = data.user.contributionsCollection;
+  const hidden = new Set(cc.commitContributionsByRepository.filter((r) => r.repository.isPrivate).map((r) => r.repository.nameWithOwner));
+  return {
+    ...data,
+    user: {
+      ...data.user,
+      contributionsCollection: {
+        ...cc,
+        commitContributionsByRepository: cc.commitContributionsByRepository.filter((r) => !r.repository.isPrivate),
+      },
+    },
+    commits: data.commits.filter((c) => !hidden.has(c.repo)),
+  };
+}
+
 function json(body, status = 200, headers = {}) {
   return new Response(JSON.stringify(body), {
     status,
@@ -21,15 +51,21 @@ async function handleApi(request, env, ctx, kind) {
   if (!Number.isInteger(year) || year < FIRST_YEAR || year > thisYear) return json({ error: 'Pick a year from the list.' }, 400);
 
   const ttl = year === thisYear ? 6 * HOUR : 7 * 24 * HOUR;
-  const cacheKey = `v1:${kind}:${name.toLowerCase()}:${year}`;
+  const cacheKey = `v2:${kind}:${name.toLowerCase()}:${year}`;
   const cacheHeaders = { 'Cache-Control': `public, max-age=${Math.min(ttl, HOUR)}` };
+
+  tokenCheck ??= hasNoScopes(env.GITHUB_TOKEN).catch(() => false);
+  if (!(await tokenCheck)) {
+    tokenCheck = null;
+    return json({ error: 'Public mode is temporarily unavailable. Use a token instead.' }, 503);
+  }
 
   const cached = await env.CACHE?.get(cacheKey);
   if (cached) return new Response(cached, { headers: { 'Content-Type': 'application/json; charset=utf-8', 'X-Cache': 'HIT', ...cacheHeaders } });
 
   try {
     const gql = createClient(env.GITHUB_TOKEN, { userAgent: 'github-wrapped' });
-    const data = kind === 'org' ? await fetchOrgData(gql, name, year) : await fetchUserData(gql, name, year);
+    const data = publicOnly(kind === 'org' ? await fetchOrgData(gql, name, year) : await fetchUserData(gql, name, year));
     const body = JSON.stringify(data);
     if (env.CACHE) ctx.waitUntil(env.CACHE.put(cacheKey, body, { expirationTtl: ttl }));
     return new Response(body, { headers: { 'Content-Type': 'application/json; charset=utf-8', 'X-Cache': 'MISS', ...cacheHeaders } });
