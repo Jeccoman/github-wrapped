@@ -3,6 +3,7 @@ import { computeUserStats, computeOrgStats } from './stats.js';
 import { buildUserSlides, buildOrgSlides, storyCardHtml, shareCardHtml, fmt } from './slides.js';
 import { heroGraph, blockMark, observeReveals } from './landing.js';
 import { demoRaw } from './demo.js';
+import { createAudio } from './audio.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
@@ -10,6 +11,14 @@ const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').match
 const THIS_YEAR = new Date().getFullYear();
 
 const settings = { org: false, private: false, lastYear: false, slow: false };
+const audio = createAudio();
+
+function melodyValues(stats) {
+  if (stats.kind === 'org') return [...stats.byMonth, ...stats.info.hours];
+  const weeks = [];
+  stats.days.forEach((d, i) => { weeks[Math.floor(i / 7)] = (weeks[Math.floor(i / 7)] ?? 0) + d.contributionCount; });
+  return weeks;
+}
 
 async function loadRaw({ kind, name, year, token }, onProgress) {
   if (token) {
@@ -37,7 +46,9 @@ function animateCounters(slide) {
     el.textContent = '0';
     const step = (t) => {
       const k = Math.max(0, Math.min(1, (t - start) / 1300));
-      el.textContent = fmt(target * (1 - Math.pow(1 - k, 4)));
+      const text = fmt(target * (1 - Math.pow(1 - k, 4)));
+      if (text !== el.textContent) audio.tick();
+      el.textContent = text;
       if (k < 1 && slide.classList.contains('active')) requestAnimationFrame(step);
       else el.textContent = fmt(target);
     };
@@ -58,6 +69,7 @@ function playStory(stats, slides) {
   story.innerHTML = `
     <div class="frame" data-ui>
       <div class="progress">${slides.map(() => '<span><i></i></span>').join('')}</div>
+      <button class="story-sound" data-action="sound" aria-label="Sound"><i></i><i></i><i></i></button>
       <button class="story-close" data-action="close" aria-label="Close">×</button>
       <div class="wipe" aria-hidden="true">${wipeCells}</div>
       ${slides.map(slideMarkup).join('')}
@@ -69,6 +81,13 @@ function playStory(stats, slides) {
   const wipe = $('.wipe', frame);
   const sections = $$('.slide', frame);
   const bars = $$('.progress i', frame);
+  const soundButton = $('.story-sound', frame);
+  const syncSound = ({ enabled, running }) => {
+    soundButton.classList.toggle('playing', enabled && running);
+    soundButton.classList.toggle('muted', !enabled);
+    soundButton.setAttribute('aria-label', !enabled ? 'Turn sound on' : running ? 'Turn sound off' : 'Tap for sound');
+  };
+  const offSound = audio.onChange(syncSound);
   let idx = -1, elapsed = 0, paused = false, last = performance.now(), raf = 0, pressAt = 0, busy = false;
   const timers = [];
 
@@ -78,6 +97,8 @@ function playStory(stats, slides) {
     sections.forEach((el, j) => el.classList.toggle('active', j === idx));
     bars.forEach((b, j) => { b.style.width = j < idx ? '100%' : '0%'; });
     frame.style.setProperty('--pfg', getComputedStyle(sections[idx]).getPropertyValue('--fg'));
+    audio.slide(idx, sections.length, slides[idx].theme);
+    audio.effects(sections[idx]);
     animateCounters(sections[idx]);
   }
 
@@ -86,6 +107,7 @@ function playStory(stats, slides) {
     if (next === idx || busy) return;
     if (idx === -1 || reducedMotion()) { activate(next); return; }
     busy = true;
+    audio.whoosh();
     frame.style.setProperty('--wipe', getComputedStyle(sections[next]).getPropertyValue('--bg'));
     wipe.className = 'wipe cover';
     timers.push(setTimeout(() => {
@@ -106,7 +128,11 @@ function playStory(stats, slides) {
   }
 
   async function onAction(action, button) {
-    if (action === 'close') stopStory();
+    if (action === 'sound') {
+      if (!audio.enabled) audio.setEnabled(true);
+      else if (audio.running) audio.setEnabled(false);
+      else audio.unlock();
+    } else if (action === 'close') stopStory();
     else if (action === 'replay') show(0);
     else if (action === 'copy-link') await copyLink(button);
     else if (action === 'save-card') await saveImage(button, () => $('#share-card', frame), `${stats.login}-${stats.year}`);
@@ -115,6 +141,7 @@ function playStory(stats, slides) {
 
   const onDown = (e) => {
     if (e.target.closest('button')) return;
+    if (audio.enabled) audio.unlock();
     paused = true;
     pressAt = performance.now();
   };
@@ -132,7 +159,10 @@ function playStory(stats, slides) {
     else if (e.key === ' ') { e.preventDefault(); paused = !paused; }
     else if (e.key === 'Escape') stopStory();
   };
-  const onVisibility = () => { paused = document.hidden; };
+  const onVisibility = () => {
+    paused = document.hidden;
+    if (document.hidden) audio.suspend(); else audio.resume();
+  };
 
   frame.addEventListener('pointerdown', onDown);
   frame.addEventListener('pointerup', onUp);
@@ -142,6 +172,8 @@ function playStory(stats, slides) {
 
   stopStory = () => {
     cancelAnimationFrame(raf);
+    audio.stop();
+    offSound();
     timers.forEach(clearTimeout);
     document.removeEventListener('keydown', onKey);
     document.removeEventListener('visibilitychange', onVisibility);
@@ -151,6 +183,8 @@ function playStory(stats, slides) {
     $('#setup').hidden = false;
   };
 
+  audio.start(melodyValues(stats));
+  syncSound({ enabled: audio.enabled, running: false });
   show(0);
   raf = requestAnimationFrame(tick);
 }
@@ -305,12 +339,14 @@ function initSetup() {
   const demoSlides = buildUserSlides(demoStats, { canCopyLink: false });
   initShowcase(demoStats, demoSlides);
   $('[data-demo]').addEventListener('click', () => {
+    if (audio.enabled) audio.unlock();
     $('#setup').hidden = true;
     playStory(demoStats, buildUserSlides(demoStats, { canCopyLink: false }));
   });
 
   const bands = $$('.band');
   function setSetting(key, on, fromForm = false) {
+    if (key === 'sound' && on !== audio.enabled) audio.setEnabled(on);
     settings[key] = on;
     const band = bands.find((b) => b.dataset.setting === key);
     band.classList.toggle('on', on);
@@ -328,6 +364,9 @@ function initSetup() {
       setSetting(band.dataset.setting, !settings[band.dataset.setting]);
     });
   });
+  settings.sound = audio.enabled;
+  setSetting('sound', audio.enabled);
+  audio.onChange(({ enabled }) => { if (settings.sound !== enabled) setSetting('sound', enabled); });
   form.addEventListener('change', (e) => {
     if (e.target.name === 'kind') setSetting('org', e.target.value === 'org', true);
     if (e.target === yearSelect) setSetting('lastYear', Number(yearSelect.value) === THIS_YEAR - 1, true);
@@ -370,7 +409,11 @@ function initSetup() {
     }
   }
 
-  form.addEventListener('submit', (e) => { e.preventDefault(); run(); });
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (audio.enabled) audio.unlock();
+    run();
+  });
 
   const params = new URLSearchParams(location.search);
   const shared = params.get('org') ? 'org' : params.get('user') ? 'user' : null;
