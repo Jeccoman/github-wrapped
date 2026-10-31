@@ -4,13 +4,14 @@ import { buildUserSlides, buildOrgSlides, storyCardHtml, shareCardHtml, fmt } fr
 import { heroGraph, blockMark, observeReveals } from './landing.js';
 import { demoRaw } from './demo.js';
 import { createAudio } from './audio.js';
+import { haptic, haptics, confetti } from './effects.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 const THIS_YEAR = new Date().getFullYear();
 
-const settings = { org: false, private: false, lastYear: false, slow: false };
+const settings = { org: false, private: false, lastYear: false, slow: false, haptics: haptics.enabled };
 const audio = createAudio();
 
 function melodyValues(stats) {
@@ -90,6 +91,25 @@ function playStory(stats, slides) {
   const offSound = audio.onChange(syncSound);
   let idx = -1, elapsed = 0, paused = false, last = performance.now(), raf = 0, pressAt = 0, busy = false;
   const timers = [];
+  let slideTimers = [];
+  let stopConfetti = () => {};
+
+  function celebrate(section) {
+    slideTimers.forEach(clearTimeout);
+    slideTimers = [];
+    stopConfetti();
+    frame.classList.remove('party');
+    const later = (ms, fn) => slideTimers.push(setTimeout(fn, ms));
+    if (section.querySelector('.bounce')) later(520, () => haptic(18));
+    $$('.sticker', section).forEach((_, i) => later(720 + i * 120, () => haptic(8)));
+    if (section.querySelector('.card-drop')) {
+      later(760, () => {
+        frame.classList.add('party');
+        stopConfetti = confetti(frame);
+        haptic([40, 50, 40, 50, 120]);
+      });
+    }
+  }
 
   function activate(i) {
     idx = i;
@@ -100,6 +120,7 @@ function playStory(stats, slides) {
     audio.slide(idx, sections.length, slides[idx].theme);
     audio.outro(idx === sections.length - 1);
     audio.effects(sections[idx]);
+    celebrate(sections[idx]);
     animateCounters(sections[idx]);
   }
 
@@ -109,6 +130,7 @@ function playStory(stats, slides) {
     if (idx === -1 || reducedMotion()) { activate(next); return; }
     busy = true;
     audio.whoosh();
+    haptic(8);
     frame.style.setProperty('--wipe', getComputedStyle(sections[next]).getPropertyValue('--bg'));
     wipe.className = 'wipe cover';
     timers.push(setTimeout(() => {
@@ -129,6 +151,7 @@ function playStory(stats, slides) {
   }
 
   async function onAction(action, button) {
+    haptic(10);
     if (action === 'sound') {
       if (!audio.enabled) audio.setEnabled(true);
       else if (audio.running) audio.setEnabled(false);
@@ -173,6 +196,8 @@ function playStory(stats, slides) {
 
   stopStory = () => {
     cancelAnimationFrame(raf);
+    slideTimers.forEach(clearTimeout);
+    stopConfetti();
     audio.stop();
     offSound();
     timers.forEach(clearTimeout);
@@ -351,6 +376,10 @@ function initSetup() {
   const bands = $$('.band');
   function setSetting(key, on, fromForm = false) {
     if (key === 'sound' && on !== audio.enabled) audio.setEnabled(on);
+    if (key === 'haptics') {
+      haptics.enabled = on;
+      if (on) haptic(20);
+    }
     settings[key] = on;
     const band = bands.find((b) => b.dataset.setting === key);
     band.classList.toggle('on', on);
@@ -370,6 +399,7 @@ function initSetup() {
   });
   settings.sound = audio.enabled;
   setSetting('sound', audio.enabled);
+  setSetting('haptics', haptics.enabled);
   audio.onChange(({ enabled }) => { if (settings.sound !== enabled) setSetting('sound', enabled); });
   form.addEventListener('change', (e) => {
     if (e.target.name === 'kind') setSetting('org', e.target.value === 'org', true);
