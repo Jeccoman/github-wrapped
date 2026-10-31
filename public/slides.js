@@ -229,12 +229,14 @@ export function shareCardHtml(s) {
   </div>`;
 }
 
-function finalSlide(s, { canCopyLink }) {
+function finalSlide(s, opts) {
+  const { canCopyLink } = opts;
   return {
     theme: 'l2',
     html: `
       <h2 class="say">${words("That's a wrap.")}</h2>
       <div class="card-drop">${shareCardHtml(s)}</div>
+      ${opts.canVideo ? '<div class="share-actions rise" style="--i:3"><button class="solid video" data-action="save-video">Make a video</button></div>' : ''}
       <div class="share-actions rise" style="--i:4">
         <button class="solid" data-action="save-card">Save card</button>
         <button class="solid" data-action="save-story">Save for Stories</button>

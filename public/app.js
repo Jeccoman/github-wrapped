@@ -5,6 +5,7 @@ import { heroGraph, blockMark, observeReveals } from './landing.js';
 import { demoRaw } from './demo.js';
 import { createAudio } from './audio.js';
 import { haptic, haptics, confetti } from './effects.js';
+import { recordVideo, videoSupported } from './video.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
@@ -188,6 +189,7 @@ function playStory(stats, slides) {
     else if (action === 'replay') show(0);
     else if (action === 'copy-link') await copyLink(button);
     else if (action === 'save-card') await saveOffscreen(button, shareCardHtml(stats), `github-wrapped-${stats.login}-${stats.year}.png`, 'Saved.');
+    else if (action === 'save-video') await saveVideo(button, stats);
     else if (action === 'save-story') await saveOffscreen(button, storyCardHtml(stats), `github-wrapped-${stats.login}-${stats.year}-story.png`, 'Saved. Ready for your Stories.');
   }
 
@@ -279,7 +281,7 @@ async function renderPng(el, scale) {
 }
 
 async function deliver(blob, filename) {
-  const file = new File([blob], filename, { type: 'image/png' });
+  const file = new File([blob], filename, { type: blob.type || 'image/png' });
   const touch = matchMedia('(pointer: coarse)').matches;
   if (touch && navigator.canShare?.({ files: [file] })) {
     try {
@@ -311,6 +313,33 @@ function saveOffscreen(button, html, filename, done) {
       host.remove();
     }
   });
+}
+
+let recording = false;
+
+async function saveVideo(button, stats) {
+  if (recording) return;
+  recording = true;
+  const label = button.textContent;
+  button.disabled = true;
+  audio.suspend();
+  try {
+    const { blob, extension } = await recordVideo(stats, {
+      onProgress: (k) => { button.textContent = `Recording… ${Math.round(k * 100)}%`; },
+    });
+    button.textContent = 'Saving…';
+    await deliver(blob, `github-wrapped-${stats.login}-${stats.year}.${extension}`);
+    setStatus(extension === 'mp4' ? 'Saved. Ready for WhatsApp Status and Stories.' : 'Saved as WebM. Some apps need MP4; Safari and recent Chrome make MP4.');
+    haptic([30, 40, 60]);
+  } catch (err) {
+    console.error(err);
+    setStatus("Couldn't make the video on this browser. Save the card instead.");
+  } finally {
+    recording = false;
+    button.disabled = false;
+    button.textContent = label;
+    audio.resume();
+  }
 }
 
 async function copyLink(button) {
@@ -398,7 +427,7 @@ function initSetup() {
   $('[data-demo]').addEventListener('click', () => {
     if (audio.enabled) audio.unlock();
     $('#setup').hidden = true;
-    playStory(demoStats, buildUserSlides(demoStats, { canCopyLink: false }));
+    playStory(demoStats, buildUserSlides(demoStats, { canCopyLink: false, canVideo: videoSupported() }));
   });
 
   const bands = $$('.band');
@@ -412,7 +441,7 @@ function initSetup() {
     if (key === 'sound' && on !== audio.enabled) audio.setEnabled(on);
     if (key === 'haptics') {
       haptics.enabled = on;
-      if (on) haptic(20);
+      if (on && !fromForm) haptic(20);
     }
     settings[key] = on;
     const band = bands.find((b) => b.dataset.setting === key);
@@ -431,7 +460,7 @@ function initSetup() {
   });
   settings.sound = audio.enabled;
   setSetting('sound', audio.enabled);
-  setSetting('haptics', haptics.enabled);
+  setSetting('haptics', haptics.enabled, true);
   audio.onChange(({ enabled }) => { if (settings.sound !== enabled) setSetting('sound', enabled); });
   form.addEventListener('change', (e) => {
     if (e.target.name === 'kind') {
@@ -470,7 +499,7 @@ function initSetup() {
         const canCopyLink = !token;
         if (canCopyLink) history.replaceState(null, '', `?${new URLSearchParams({ party: stats.members.map((m) => m.login).join(','), year })}`);
         showLoading(false);
-        playStory(stats, buildPartySlides(stats, { canCopyLink }));
+        playStory(stats, buildPartySlides(stats, { canCopyLink, canVideo: videoSupported() }));
       } catch (err) {
         showLoading(false);
         $('#setup').hidden = false;
@@ -489,7 +518,7 @@ function initSetup() {
       const stats = kind === 'org' ? computeOrgStats(raw) : computeUserStats(raw);
       const canCopyLink = !token;
       if (canCopyLink) history.replaceState(null, '', `?${new URLSearchParams({ [kind]: stats.login, year })}`);
-      const slides = kind === 'org' ? buildOrgSlides(stats, { canCopyLink }) : buildUserSlides(stats, { canCopyLink });
+      const slides = kind === 'org' ? buildOrgSlides(stats, { canCopyLink, canVideo: videoSupported() }) : buildUserSlides(stats, { canCopyLink, canVideo: videoSupported() });
       showLoading(false);
       playStory(stats, slides);
     } catch (err) {
