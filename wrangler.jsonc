@@ -13,6 +13,6 @@
   },
   "kv_namespaces": [{ "binding": "CACHE", "id": "71539940ed6f4c51a925ef76099095d4" }],
   "ratelimits": [{ "name": "LIMITER", "namespace_id": "4401", "simple": { "limit": 12, "period": 60 } }],
-  "analytics_engine_datasets": [{ "binding": "WRAPS", "dataset": "github_wrapped" }],
+  "analytics_engine_datasets": [{ "binding": "WRAPS", "dataset": "unyama" }],
   "observability": { "enabled": true }
 }
