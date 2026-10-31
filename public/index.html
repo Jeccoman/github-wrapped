@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>GitHub Wrapped</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700;12..96,800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main id="setup" class="setup">
+    <div class="setup-card">
+      <h1>GitHub<br>Wrapped</h1>
+      <p class="tagline">Your year in code, unwrapped.</p>
+      <form id="setup-form" autocomplete="off">
+        <fieldset class="segmented">
+          <legend class="sr-only">Wrap a</legend>
+          <label><input type="radio" name="kind" value="user" checked><span>Person</span></label>
+          <label><input type="radio" name="kind" value="org"><span>Organization</span></label>
+        </fieldset>
+        <label>
+          <span><span id="name-label">Username</span> <em id="name-hint"></em></span>
+          <input id="name" type="text" placeholder="octocat" spellcheck="false" autocapitalize="off">
+        </label>
+        <label>
+          <span>Year</span>
+          <select id="year"></select>
+        </label>
+        <label class="check">
+          <input id="use-token" type="checkbox">
+          <span>Include private work <em>(needs a token)</em></span>
+        </label>
+        <label id="token-field" hidden>
+          <span>GitHub token</span>
+          <input id="token" type="password" placeholder="ghp_… or github_pat_…">
+          <small class="fine">
+            Stays in this tab and goes only to <code>api.github.com</code>, never to our server.
+            Use a classic token with <code>read:user</code>, <code>read:org</code> and <code>repo</code> scopes.
+          </small>
+        </label>
+        <button type="submit" class="primary">Unwrap the year</button>
+        <p id="error" class="error" role="alert"></p>
+      </form>
+    </div>
+  </main>
+
+  <div id="loading" class="loading" hidden>
+    <div class="spinner"></div>
+    <p id="loading-text">Reading your commits…</p>
+  </div>
+
+  <div id="story" class="story" hidden></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "github-wrapped",
+  "account_id": "52149a64c8a2dba44cd8a64f81e8ee6a",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  "kv_namespaces": [{ "binding": "CACHE", "id": "71539940ed6f4c51a925ef76099095d4" }],
+  "observability": { "enabled": true }
+}
