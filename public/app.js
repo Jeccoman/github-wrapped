@@ -194,12 +194,13 @@ function playStory(stats, slides) {
   }
 
   const onDown = (e) => {
-    if (e.target.closest('button')) return;
+    if (e.target.closest('button, a')) return;
     if (audio.enabled) audio.unlock();
     paused = true;
     pressAt = performance.now();
   };
   const onUp = (e) => {
+    if (e.target.closest('a')) return;
     const button = e.target.closest('button');
     if (button) { onAction(button.dataset.action, button); return; }
     paused = false;
@@ -406,12 +407,26 @@ function initShowcase(demoStats, demoSlides) {
   select(0, false);
 }
 
+async function showStars() {
+  try {
+    const res = await fetch('https://api.github.com/repos/Jeccoman/github-wrapped');
+    if (!res.ok) return;
+    const { stargazers_count: n } = await res.json();
+    if (!n) return;
+    $$('[data-star-count]').forEach((el) => {
+      el.textContent = n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k` : String(n);
+      el.hidden = false;
+    });
+  } catch {}
+}
+
 function initSetup() {
   const form = $('#setup-form');
   const nameInput = $('#name');
   const yearSelect = $('#year');
   for (let y = THIS_YEAR; y >= FIRST_YEAR; y--) yearSelect.add(new Option(y, y));
   $('#footer-year').textContent = THIS_YEAR;
+  showStars();
   $('#last-year-more').textContent = `Your ${THIS_YEAR - 1}, complete: every day from 1 January to 31 December.`;
 
   const graph = heroGraph($('#hero-graph'));

@@ -285,6 +285,9 @@ function finalSlide(s, opts) {
         ${canCopyLink ? '<button class="ghost" data-action="copy-link">Copy link</button>' : ''}
         <button class="ghost" data-action="replay">Replay</button>
       </div>
+      <div class="share-actions rise" style="--i:6">
+        <a class="ghost" href="https://github.com/Jeccoman/github-wrapped" target="_blank" rel="noopener">★ Star on GitHub</a>
+      </div>
       <p class="share-status" role="status"></p>`,
   };
 }

@@ -93,6 +93,18 @@ h1, h2, h3 { font-family: var(--display); font-weight: 300; letter-spacing: -0.0
 }
 .nav-action:hover { background: var(--l4); }
 .nav-action:active { transform: scale(0.95); }
+.nav-star {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 14px;
+  font-weight: 500; text-decoration: none;
+  border: 2px solid var(--ink); border-radius: var(--radius);
+  transition: background-color 180ms ease, transform 160ms var(--ease-out);
+}
+.nav-star svg { width: 16px; height: 16px; fill: var(--sun); stroke: var(--ink); stroke-width: 1.2; transition: transform 300ms var(--ease-spring); }
+.nav-star b { padding-left: 8px; border-left: 2px solid var(--ink); font-weight: 700; }
+.nav-star:hover { background: var(--l1); }
+.nav-star:hover svg { transform: rotate(72deg) scale(1.15); }
+.nav-star:active { transform: scale(0.95); }
 
 .hero {
   position: relative;
@@ -645,13 +657,14 @@ h1, h2, h3 { font-family: var(--display); font-weight: 300; letter-spacing: -0.0
 .card-stacks .stack.hot i { background: var(--l2); }
 
 .share-actions { display: flex; gap: 8px; }
-.share-actions button {
+.share-actions button, .share-actions a {
   flex: 1; min-height: 50px; padding: 12px;
   font-weight: 700;
   border: 0; border-radius: var(--radius);
   transition: transform 160ms var(--ease-out), background-color 160ms ease;
 }
-.share-actions button:active { transform: scale(0.96); }
+.share-actions button:active, .share-actions a:active { transform: scale(0.96); }
+.share-actions a { display: flex; align-items: center; justify-content: center; text-decoration: none; font-size: inherit; }
 .share-actions .solid { color: var(--bg); background: var(--fg); }
 .share-actions .ghost { color: var(--fg); background: color-mix(in srgb, var(--fg) 14%, transparent); }
 .share-actions .ghost:hover { background: color-mix(in srgb, var(--fg) 22%, transparent); }
@@ -688,7 +701,8 @@ h1, h2, h3 { font-family: var(--display); font-weight: 300; letter-spacing: -0.0
 @media (max-width: 760px) {
   .nav { gap: 16px; }
   .nav nav { display: none; }
-  .nav-action { margin-left: auto; }
+  .nav-star { margin-left: auto; padding: 8px 10px; }
+  .nav-star span { display: none; }
   .hero { min-height: calc(100svh - 76px); }
   .hero-copy { grid-template-columns: minmax(0, 1fr); gap: 20px; padding-bottom: 32px; }
   .hero h1, .hero-side { grid-column: 1; }
